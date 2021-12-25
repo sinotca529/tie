@@ -1,0 +1,4 @@
+/target
+/llvm-cov-report
+*.profdata
+*.profraw
