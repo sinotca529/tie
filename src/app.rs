@@ -1,5 +1,4 @@
 use crossterm::{
-    event::{self, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -14,29 +13,33 @@ use tui::{
     Frame, Terminal,
 };
 
-use crate::image::Image;
+use crate::{
+    command::{Command, CommandStream},
+    image::Image,
+};
 
 #[derive(Error, Debug)]
-pub enum AppError {
+pub enum AppError<E: 'static + std::error::Error + std::fmt::Debug> {
     #[error("IO error in terminal initialization.")]
     InitTerm(#[source] std::io::Error),
     #[error("IO error in terminal finalization.")]
     FinTerm(#[source] std::io::Error),
     #[error("IO error in drawing process.")]
     Draw(#[source] std::io::Error),
-    #[error("IO error in polling key event.")]
-    KeyEvent(#[source] std::io::Error),
+    #[error("Error in read command.")]
+    ReadCommand(#[source] E),
 }
 
-#[derive(Clone, PartialEq, Debug)]
-pub struct App {
+pub struct App<T: CommandStream> {
     image_txt: Text<'static>,
+    cmd_stream: T,
 }
 
-impl App {
-    pub fn new(img: &Image) -> Self {
-        Self {
+impl<CS: CommandStream> App<CS> {
+    pub fn new(img: &Image, cmd_stream: CS) -> Self {
+        App {
             image_txt: img.into(),
+            cmd_stream,
         }
     }
 
@@ -57,8 +60,14 @@ impl App {
 
         f.render_widget(img, chunks[0]);
     }
+}
 
-    pub fn run(&self) -> Result<(), AppError> {
+impl<CS> App<CS>
+where
+    CS: CommandStream,
+    CS::Error: std::error::Error + std::fmt::Debug,
+{
+    pub fn run(&self) -> Result<(), AppError<CS::Error>> {
         // setup terminal
         enable_raw_mode().map_err(AppError::InitTerm)?;
         let mut stdout = io::stdout();
@@ -67,28 +76,43 @@ impl App {
         let mut terminal = Terminal::new(backend).map_err(AppError::InitTerm)?;
 
         // create app and run it
-        let res = self.main_loop(&mut terminal);
+        self.main_loop(&mut terminal)?;
 
         // restore terminal
         disable_raw_mode().map_err(AppError::FinTerm)?;
         execute!(terminal.backend_mut(), LeaveAlternateScreen,).map_err(AppError::FinTerm)?;
         terminal.show_cursor().map_err(AppError::FinTerm)?;
 
-        if let Err(err) = res {
-            println!("{:?}", err)
-        }
-
         Ok(())
     }
 
-    fn main_loop(&self, terminal: &mut Terminal<impl Backend>) -> Result<(), AppError> {
+    fn main_loop(&self, terminal: &mut Terminal<impl Backend>) -> Result<(), AppError<CS::Error>> {
         loop {
             terminal.draw(|f| self.ui(f)).map_err(AppError::Draw)?;
-            if let Event::Key(key) = event::read().map_err(AppError::KeyEvent)? {
-                if key.code == KeyCode::Char('q') {
-                    return Ok(());
-                }
+            if let Command::Quit = self.cmd_stream.read().map_err(AppError::ReadCommand)? {
+                return Ok(());
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::command::programmed::ProgrammedEvent;
+
+    use super::*;
+    #[test]
+    fn app_run_without_error_test() {
+        let img = Image::read_from_file("tests/image/00.png").unwrap();
+        let cs = ProgrammedEvent::new(vec![
+            Command::Unknown,
+            Command::Unknown,
+            Command::Unknown,
+            Command::Quit,
+            Command::Unknown,
+            Command::Unknown,
+        ]);
+        let app = App::new(&img, cs);
+        assert!(matches!(app.run(), Ok(_)));
     }
 }
