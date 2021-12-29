@@ -7,6 +7,15 @@ pub mod programmed;
 pub enum Command {
     Quit,
     Unknown,
+    Direction(Direction),
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub enum Direction {
+    Up,
+    Down,
+    Left,
+    Right,
 }
 
 pub trait CommandStream {

@@ -1,6 +1,6 @@
 use crossterm::event::{self, KeyCode};
 
-use super::{Command, CommandStream};
+use super::{Command, CommandStream, Direction};
 
 /// Fetch key event and use it as Command
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -10,6 +10,10 @@ impl KeyInput {
     fn keycode2command(keycode: &KeyCode) -> Command {
         match keycode {
             KeyCode::Char('q') => Command::Quit,
+            KeyCode::Char('h') => Command::Direction(Direction::Left),
+            KeyCode::Char('j') => Command::Direction(Direction::Down),
+            KeyCode::Char('k') => Command::Direction(Direction::Up),
+            KeyCode::Char('l') => Command::Direction(Direction::Right),
             _ => Command::Unknown,
         }
     }
