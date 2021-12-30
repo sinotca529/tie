@@ -1,12 +1,18 @@
 use std::{fs::File, path::Path};
 use thiserror::Error;
 use tui::{
-    style::Style,
+    style::{Color, Style},
     text::{Span, Spans, Text},
 };
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Rgb(u8, u8, u8);
+
+impl Rgb {
+    fn opposite(&self) -> Self {
+        Self(255 - self.0, 255 - self.1, 255 - self.2)
+    }
+}
 
 impl From<Rgb> for tui::style::Color {
     fn from(rgb: Rgb) -> Self {
@@ -14,11 +20,11 @@ impl From<Rgb> for tui::style::Color {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Image {
     width: u32,
     height: u32,
-    data: Vec<Rgb>,
+    data: Text<'static>,
 }
 
 #[derive(Error, Debug)]
@@ -32,6 +38,8 @@ pub enum ImageError {
 }
 
 impl Image {
+    const CURSOR_STR: &'static str = "[]";
+
     /// Read image from file.
     pub fn read_from_file(path: impl AsRef<Path>) -> Result<Image, ImageError> {
         dbg!(path.as_ref());
@@ -54,10 +62,21 @@ impl Image {
 
         assert_eq!((width * height * 3) as usize, bytes.len());
 
-        let data: Vec<Rgb> = bytes
-            .chunks(3)
-            .map(|rgb: &[u8]| Rgb(rgb[0], rgb[1], rgb[2]))
-            .collect();
+        let data: Text<'static> = bytes
+            .chunks(3 * width as usize)
+            .map(|rgbs: &[u8]| {
+                let mut line = Vec::with_capacity(width as usize);
+                for i in 0..(width as usize) {
+                    let base = 3 * i;
+                    let color = Color::Rgb(rgbs[base], rgbs[base + 1], rgbs[base + 2]);
+                    let style = Style::default().bg(color).fg(color);
+                    let span = Span::styled(Self::CURSOR_STR, style);
+                    line.push(span);
+                }
+                Into::<Spans<'static>>::into(line)
+            })
+            .collect::<Vec<Spans<'static>>>()
+            .into();
 
         file.sync_all().map_err(ImageError::IO)?;
 
@@ -68,31 +87,32 @@ impl Image {
         })
     }
 
-    fn get_pixel_color(&self, x: u32, y: u32) -> Option<Rgb> {
-        if x >= self.width || y >= self.height {
-            return None;
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+
+    pub fn height(&self) -> u32 {
+        self.height
+    }
+
+    pub fn into_text_with_cursor(self, cursor_coord: (usize, usize)) -> Text<'static> {
+        let mut img_txt = self.data;
+
+        let span = &mut img_txt.lines[cursor_coord.1].0[cursor_coord.0];
+
+        if let Some(Color::Rgb(r, g, b)) = span.style.bg {
+            let opposite_color = Rgb(r, g, b).opposite().into();
+            span.style = span.style.fg(opposite_color);
+            img_txt
+        } else {
+            unreachable!()
         }
-        let idx = (y * self.width + x) as usize;
-        self.data.get(idx).copied()
     }
 }
 
-impl From<&Image> for Text<'static> {
-    fn from(img: &Image) -> Self {
-        let mut lines: Vec<Spans> = Vec::with_capacity(img.width as usize);
-
-        for y in 0..img.height {
-            let mut line = Vec::with_capacity(img.width as usize);
-            for x in 0..img.width {
-                let rgb = img.get_pixel_color(x, y).unwrap();
-                let style = Style::default().bg(rgb.into()).fg(rgb.into());
-                let span = Span::styled("__", style);
-                line.push(span);
-            }
-            lines.push(line.into());
-        }
-
-        lines.into()
+impl From<Image> for Text<'static> {
+    fn from(img: Image) -> Self {
+        img.data
     }
 }
 
@@ -106,25 +126,36 @@ mod tests {
     #[test]
     fn test_read_from() {
         let img = Image::read_from_file("./tests/image/00.png");
-        assert_eq!(
-            img.unwrap(),
-            Image {
-                width: 5,
-                height: 2,
-                data: vec![
-                    Rgb(237, 28, 36),
-                    Rgb(63, 72, 204),
-                    Rgb(255, 255, 255),
-                    Rgb(255, 255, 255),
-                    Rgb(255, 127, 39),
-                    Rgb(255, 255, 255),
-                    Rgb(255, 255, 255),
-                    Rgb(255, 255, 255),
-                    Rgb(255, 255, 255),
-                    Rgb(255, 242, 0),
-                ]
+        assert!(img.is_ok());
+        let img = img.unwrap();
+
+        let expected_colors = vec![
+            vec![
+                Rgb(237, 28, 36),
+                Rgb(63, 72, 204),
+                Rgb(255, 255, 255),
+                Rgb(255, 255, 255),
+                Rgb(255, 127, 39),
+            ],
+            vec![
+                Rgb(255, 255, 255),
+                Rgb(255, 255, 255),
+                Rgb(255, 255, 255),
+                Rgb(255, 255, 255),
+                Rgb(255, 242, 0),
+            ],
+        ];
+
+        let (width, height) = (5, 2);
+        for y in 0..height {
+            for x in 0..width {
+                let expected_color: Color = expected_colors[y as usize][x as usize].into();
+                let span = &img.data.lines[y as usize].0[x as usize];
+                assert_eq!(span.content.to_string(), Image::CURSOR_STR);
+                assert_eq!(span.style.fg, Some(expected_color));
+                assert_eq!(span.style.bg, Some(expected_color));
             }
-        );
+        }
     }
 
     /// This test checks whether `Image::read_from_file` return `ImageError::IO` when it passed a path to non-exist file.
@@ -148,64 +179,10 @@ mod tests {
     }
 
     #[test]
-    fn test_get_pixel_color() {
-        let img = Image::read_from_file("./tests/image/00.png").unwrap();
-
-        let correct_data = vec![
-            Rgb(237, 28, 36),
-            Rgb(63, 72, 204),
-            Rgb(255, 255, 255),
-            Rgb(255, 255, 255),
-            Rgb(255, 127, 39),
-            Rgb(255, 255, 255),
-            Rgb(255, 255, 255),
-            Rgb(255, 255, 255),
-            Rgb(255, 255, 255),
-            Rgb(255, 242, 0),
-        ];
-
-        for y in 0..img.height {
-            for x in 0..img.width {
-                let idx = ((y * img.width) + x) as usize;
-                assert_eq!(img.get_pixel_color(x, y), Some(correct_data[idx]));
-            }
-        }
-    }
-
-    #[test]
-    fn boundary_test_get_pixel_color() {
-        let img = Image::read_from_file("./tests/image/00.png").unwrap();
-        assert_eq!(img.get_pixel_color(img.width, 0), None);
-        assert_eq!(img.get_pixel_color(0, img.height), None);
-    }
-
-    #[test]
     fn test_into_text() {
         let img = Image::read_from_file("./tests/image/00.png").unwrap();
-        let text: Text = (&img).into();
-
-        // Two characters are used to draw one pixel.
-        // So, `img.width * 2` must be `text.width()`.
-        assert_eq!(
-            (img.height as usize, img.width as usize * 2),
-            (text.height(), text.width())
-        );
-
-        for y in 0..img.height {
-            for x in 0..img.width {
-                let span = &text.lines[y as usize].0[x as usize];
-                let pixel_color = img.get_pixel_color(x, y).unwrap();
-                assert_eq!(
-                    span,
-                    &Span::styled(
-                        "__",
-                        Style::default()
-                            .bg(pixel_color.into())
-                            .fg(pixel_color.into())
-                    )
-                );
-            }
-        }
+        let text: Text<'static> = img.clone().into();
+        assert_eq!(img.data, text);
     }
 
     #[test]
@@ -213,5 +190,34 @@ mod tests {
         let rgb = Rgb(2, 4, 8);
         let tui_rgb: Color = From::from(rgb);
         assert_eq!(tui_rgb, Color::Rgb(2, 4, 8));
+    }
+
+    #[test]
+    fn test_into_text_with_cursor() {
+        let img = Image::read_from_file("./tests/image/00.png").unwrap();
+        let (w, h) = (img.width as usize, img.height as usize);
+
+        let cursor_coord = (3, 1);
+        assert!(cursor_coord < (w - 1, h - 1));
+        let with_cursor = img.into_text_with_cursor(cursor_coord);
+
+        for y in 0..h {
+            for x in 0..w {
+                let span = &with_cursor.lines[y].0[x];
+                let fg = span.style.fg.unwrap();
+                let bg = span.style.bg.unwrap();
+                if let (Color::Rgb(fr, fg, fb), Color::Rgb(br, bg, bb)) = (fg, bg) {
+                    let fg = Rgb(fr, fg, fb);
+                    let bg = Rgb(br, bg, bb);
+                    if (x, y) == cursor_coord {
+                        assert_eq!(fg.opposite(), bg);
+                    } else {
+                        assert_eq!(fg, bg);
+                    }
+                } else {
+                    unreachable!()
+                }
+            }
+        }
     }
 }

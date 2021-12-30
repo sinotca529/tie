@@ -13,7 +13,8 @@ pub struct ProgrammedEvent {
 }
 
 impl ProgrammedEvent {
-    pub fn new(cmds: Vec<Command>) -> Self {
+    pub fn new(mut cmds: Vec<Command>) -> Self {
+        cmds.reverse();
         Self {
             remain_commands: RefCell::new(cmds),
         }
@@ -28,5 +29,18 @@ impl CommandStream for ProgrammedEvent {
             Some(cmd) => Ok(cmd),
             None => Ok(Command::Unknown),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_read_order() {
+        let cs = ProgrammedEvent::new(vec![Command::Unknown, Command::Quit]);
+        assert!(matches!(cs.read(), Ok(Command::Unknown)));
+        assert!(matches!(cs.read(), Ok(Command::Quit)));
+        assert!(matches!(cs.read(), Ok(Command::Unknown)));
+        assert!(matches!(cs.read(), Ok(Command::Unknown)));
     }
 }
