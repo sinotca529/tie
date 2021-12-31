@@ -15,6 +15,7 @@ use tui::{
 use crate::{
     command::{Command, CommandStream},
     image::Image,
+    palette::Palette,
 };
 
 #[derive(Error, Debug)]
@@ -33,6 +34,7 @@ pub struct App<T: CommandStream> {
     image: Image,
     cmd_stream: T,
     cursor_coord: (usize, usize),
+    palette: Palette,
 }
 
 impl<CS: CommandStream> App<CS> {
@@ -41,13 +43,14 @@ impl<CS: CommandStream> App<CS> {
             image: img,
             cmd_stream,
             cursor_coord: (0, 0),
+            palette: Palette::default(),
         }
     }
 
     fn ui(&self, f: &mut Frame<impl Backend>) {
         let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Percentage(100)].as_ref())
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(40), Constraint::Percentage(60)].as_ref())
             .split(f.size());
 
         let canvas = Block::default().title("Canvas").borders(Borders::ALL);
@@ -59,7 +62,9 @@ impl<CS: CommandStream> App<CS> {
             .alignment(Alignment::Center)
             .wrap(Wrap { trim: false });
 
-        f.render_widget(img, chunks[0]);
+        f.render_widget(img, chunks[1]);
+
+        self.palette.draw(f, chunks[0]);
     }
 
     fn move_cursor(&mut self, dir: crate::command::Direction) {
@@ -122,6 +127,7 @@ where
                 Command::Quit => break,
                 Command::Unknown => {}
                 Command::Direction(dir) => self.move_cursor(dir),
+                Command::Palette(_) => {}
             }
         }
         Ok(())

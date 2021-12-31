@@ -1,3 +1,5 @@
+use crate::palette::PaletteID;
+
 pub mod keyinput;
 
 #[cfg(test)]
@@ -8,6 +10,7 @@ pub enum Command {
     Quit,
     Unknown,
     Direction(Direction),
+    Palette(PaletteID),
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]

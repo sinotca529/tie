@@ -6,7 +6,7 @@ use tui::{
 };
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct Rgb(u8, u8, u8);
+pub struct Rgb(pub u8, pub u8, pub u8);
 
 impl Rgb {
     fn opposite(&self) -> Self {
