@@ -1,4 +1,4 @@
-use crate::palette::PaletteID;
+use crate::widget::palette::PaletteID;
 
 pub mod keyinput;
 

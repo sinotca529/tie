@@ -9,6 +9,8 @@ use tui::{
 
 use crate::image::Rgb;
 
+use super::Widget;
+
 const NUM_COLORS: usize = 6;
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -25,8 +27,8 @@ pub struct Palette {
     colors: [Rgb; NUM_COLORS],
 }
 
-impl Palette {
-    pub fn draw(&self, f: &mut Frame<impl Backend>, rect: Rect) {
+impl Widget for Palette {
+    fn render(&self, f: &mut Frame<impl Backend>, rect: Rect) {
         let up = (0..3)
             .map(|i| {
                 let color = self.colors[i].into();

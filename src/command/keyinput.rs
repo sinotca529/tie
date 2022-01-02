@@ -1,6 +1,6 @@
 use crossterm::event::{self, KeyCode};
 
-use crate::palette::PaletteID;
+use crate::widget::palette::PaletteID;
 
 use super::{Command, CommandStream, Direction};
 
