@@ -15,16 +15,28 @@ const NUM_COLORS: usize = 6;
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum PaletteID {
-    ID1,
-    ID2,
-    ID3,
-    ID4,
-    ID5,
-    ID6,
+    ID0 = 0,
+    ID1 = 1,
+    ID2 = 2,
+    ID3 = 3,
+    ID4 = 4,
+    ID5 = 5,
 }
 
 pub struct Palette {
     colors: [Rgb; NUM_COLORS],
+}
+
+impl Palette {
+    /// Return a reference to color of palette.
+    pub fn color(&self, id: PaletteID) -> &Rgb {
+        &self.colors[id as usize]
+    }
+
+    /// Return a mutable reference to color of palette.
+    pub fn color_mut(&mut self, id: PaletteID) -> &mut Rgb {
+        &mut self.colors[id as usize]
+    }
 }
 
 impl Widget for Palette {

@@ -84,11 +84,15 @@ where
     ) -> Result<(), AppError<CS::Error>> {
         loop {
             terminal.draw(|f| self.render(f)).map_err(AppError::Draw)?;
+
             match self.cmd_stream.read().map_err(AppError::ReadCommand)? {
                 Command::Quit => break,
                 Command::Unknown => {}
                 Command::Direction(dir) => self.canvas.move_cursor(dir),
-                Command::Palette(_) => {}
+                Command::Palette(id) => {
+                    let color = *self.palette.color(id);
+                    self.canvas.edit(color);
+                }
             }
         }
         Ok(())
@@ -97,8 +101,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::command::Direction;
     use crate::command::programmed::ProgrammedEvent;
+    use crate::command::Direction;
     use crate::widget::palette::PaletteID;
 
     use super::*;
@@ -111,12 +115,12 @@ mod tests {
             Command::Direction(Direction::Down),
             Command::Direction(Direction::Left),
             Command::Direction(Direction::Right),
+            Command::Palette(PaletteID::ID0),
             Command::Palette(PaletteID::ID1),
             Command::Palette(PaletteID::ID2),
             Command::Palette(PaletteID::ID3),
             Command::Palette(PaletteID::ID4),
             Command::Palette(PaletteID::ID5),
-            Command::Palette(PaletteID::ID6),
             Command::Quit,
             Command::Unknown,
             Command::Unknown,

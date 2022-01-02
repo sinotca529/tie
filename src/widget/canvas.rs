@@ -4,7 +4,7 @@ use tui::{
     widgets::{Block, Borders, Paragraph, Wrap},
 };
 
-use crate::image::Image;
+use crate::image::{Image, Rgb};
 
 use super::Widget;
 
@@ -46,12 +46,16 @@ impl Canvas {
             }
         }
     }
+
+    pub fn edit(&mut self, color: Rgb) {
+        self.image.edit(color, &self.cursor_coord);
+    }
 }
 
 impl Widget for Canvas {
     fn render(&self, f: &mut tui::Frame<impl tui::backend::Backend>, rect: tui::layout::Rect) {
         let canvas = Block::default().title("Canvas").borders(Borders::ALL);
-        let img = Paragraph::new(self.image.clone().into_text_with_cursor(self.cursor_coord))
+        let img = Paragraph::new(self.image.clone().into_text_with_cursor(&self.cursor_coord))
             .block(canvas)
             .style(Style::default().fg(Color::White).bg(Color::Black))
             .alignment(Alignment::Center)
