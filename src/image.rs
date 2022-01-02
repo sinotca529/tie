@@ -135,14 +135,6 @@ impl Image {
         }
     }
 
-    fn fg_color(&self, coord: &(usize, usize)) -> &Color {
-        self.assert_coord(coord);
-        match self.data.lines[coord.1].0[coord.0].style.fg {
-            Some(ref color) => color,
-            None => unreachable!(),
-        }
-    }
-
     fn fg_color_mut(&mut self, coord: &(usize, usize)) -> &mut Color {
         self.assert_coord(coord);
         match self.data.lines[coord.1].0[coord.0].style.fg {
@@ -200,7 +192,7 @@ mod tests {
         }
     }
 
-    /// This test checks : bg_color, bg_color_mut, fg_color, fg_color_mut
+    /// This test checks : bg_color, bg_color_mut, fg_color_mut
     #[test]
     fn test_fg_bg() {
         let img = Image::read_from_file("./tests/image/00.png");
@@ -231,7 +223,6 @@ mod tests {
                 let expected_color: Color = expected_colors[y as usize][x as usize].into();
                 assert_eq!(*img.bg_color(&coord), expected_color);
                 assert_eq!(*img.bg_color_mut(&coord), expected_color);
-                assert_eq!(*img.fg_color(&coord), expected_color);
                 assert_eq!(*img.fg_color_mut(&coord), expected_color);
             }
         }
@@ -315,7 +306,7 @@ mod tests {
         let coord = (img.width as usize - 1, img.height as usize - 1);
         let color = Rgb(12, 23, 34);
         img.edit(color, &coord);
-        assert_eq!(*(img.fg_color(&coord)), color.into());
+        assert_eq!(*(img.fg_color_mut(&coord)), color.into());
         assert_eq!(*(img.bg_color(&coord)), color.into());
     }
 }
