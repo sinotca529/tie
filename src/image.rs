@@ -6,7 +6,7 @@ use tui::{
 };
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct Rgb(u8, u8, u8);
+pub struct Rgb(pub u8, pub u8, pub u8);
 
 impl Rgb {
     fn opposite(&self) -> Self {
@@ -95,17 +95,59 @@ impl Image {
         self.height
     }
 
-    pub fn into_text_with_cursor(self, cursor_coord: (usize, usize)) -> Text<'static> {
-        let mut img_txt = self.data;
-
-        let span = &mut img_txt.lines[cursor_coord.1].0[cursor_coord.0];
-
-        if let Some(Color::Rgb(r, g, b)) = span.style.bg {
-            let opposite_color = Rgb(r, g, b).opposite().into();
-            span.style = span.style.fg(opposite_color);
-            img_txt
+    pub fn into_text_with_cursor(mut self, cursor_coord: &(usize, usize)) -> Text<'static> {
+        if let Color::Rgb(r, g, b) = self.bg_color(cursor_coord) {
+            let opposite_color: Color = Rgb(*r, *g, *b).opposite().into();
+            *(self.fg_color_mut(cursor_coord)) = opposite_color;
+            self.data
         } else {
             unreachable!()
+        }
+    }
+
+    /// Change color of the pixel at `coord` with `color`.
+    pub fn edit(&mut self, color: Rgb, coord: &(usize, usize)) {
+        self.assert_coord(coord);
+        *(self.fg_color_mut(coord)) = color.into();
+        *(self.bg_color_mut(coord)) = color.into();
+    }
+}
+
+impl Image {
+    fn assert_coord(&self, coord: &(usize, usize)) {
+        assert!(coord.0 < self.width() as usize);
+        assert!(coord.1 < self.height() as usize);
+    }
+
+    fn bg_color(&self, coord: &(usize, usize)) -> &Color {
+        self.assert_coord(coord);
+        match self.data.lines[coord.1].0[coord.0].style.bg {
+            Some(ref color) => color,
+            None => unreachable!(),
+        }
+    }
+
+    fn bg_color_mut(&mut self, coord: &(usize, usize)) -> &mut Color {
+        self.assert_coord(coord);
+        match self.data.lines[coord.1].0[coord.0].style.bg {
+            Some(ref mut color) => color,
+            None => unreachable!(),
+        }
+    }
+
+    fn fg_color(&self, coord: &(usize, usize)) -> &Color {
+        self.assert_coord(coord);
+        match self.data.lines[coord.1].0[coord.0].style.fg {
+            Some(ref color) => color,
+            None => unreachable!(),
+        }
+    }
+
+    fn fg_color_mut(&mut self, coord: &(usize, usize)) -> &mut Color {
+        self.assert_coord(coord);
+        match self.data.lines[coord.1].0[coord.0].style.fg {
+            Some(ref mut color) => color,
+            None => unreachable!(),
         }
     }
 }
@@ -158,6 +200,43 @@ mod tests {
         }
     }
 
+    /// This test checks : bg_color, bg_color_mut, fg_color, fg_color_mut
+    #[test]
+    fn test_fg_bg() {
+        let img = Image::read_from_file("./tests/image/00.png");
+        assert!(img.is_ok());
+        let mut img = img.unwrap();
+
+        let expected_colors = vec![
+            vec![
+                Rgb(237, 28, 36),
+                Rgb(63, 72, 204),
+                Rgb(255, 255, 255),
+                Rgb(255, 255, 255),
+                Rgb(255, 127, 39),
+            ],
+            vec![
+                Rgb(255, 255, 255),
+                Rgb(255, 255, 255),
+                Rgb(255, 255, 255),
+                Rgb(255, 255, 255),
+                Rgb(255, 242, 0),
+            ],
+        ];
+
+        let (width, height) = (5, 2);
+        for y in 0..height {
+            for x in 0..width {
+                let coord = (x, y);
+                let expected_color: Color = expected_colors[y as usize][x as usize].into();
+                assert_eq!(*img.bg_color(&coord), expected_color);
+                assert_eq!(*img.bg_color_mut(&coord), expected_color);
+                assert_eq!(*img.fg_color(&coord), expected_color);
+                assert_eq!(*img.fg_color_mut(&coord), expected_color);
+            }
+        }
+    }
+
     /// This test checks whether `Image::read_from_file` return `ImageError::IO` when it passed a path to non-exist file.
     #[test]
     fn test_read_from_error_io() {
@@ -199,7 +278,7 @@ mod tests {
 
         let cursor_coord = (3, 1);
         assert!(cursor_coord < (w - 1, h - 1));
-        let with_cursor = img.into_text_with_cursor(cursor_coord);
+        let with_cursor = img.into_text_with_cursor(&cursor_coord);
 
         for y in 0..h {
             for x in 0..w {
@@ -219,5 +298,24 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn boudary_test_edit() {
+        let mut img = Image::read_from_file("./tests/image/00.png").unwrap();
+        let (w, h) = (img.width as usize, img.height as usize);
+
+        let coord = (w - 1, h - 1);
+        img.edit(Rgb(0, 0, 0), &coord);
+    }
+
+    #[test]
+    fn test_edit() {
+        let mut img = Image::read_from_file("./tests/image/00.png").unwrap();
+        let coord = (img.width as usize - 1, img.height as usize - 1);
+        let color = Rgb(12, 23, 34);
+        img.edit(color, &coord);
+        assert_eq!(*(img.fg_color(&coord)), color.into());
+        assert_eq!(*(img.bg_color(&coord)), color.into());
     }
 }
