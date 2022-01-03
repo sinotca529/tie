@@ -44,13 +44,25 @@ impl<CS: CommandStream> App<CS> {
     }
 
     fn render(&self, f: &mut Frame<impl Backend>) {
-        let chunks = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(40), Constraint::Percentage(60)].as_ref())
+        let chunks1 = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(
+                [
+                    Constraint::Length(f.size().height - 3),
+                    Constraint::Length(3),
+                ]
+                .as_ref(),
+            )
             .split(f.size());
 
-        self.palette.render(f, chunks[0]);
-        self.canvas.render(f, chunks[1]);
+        let chunks2 = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(40), Constraint::Percentage(60)].as_ref())
+            .split(chunks1[0]);
+
+        self.palette.render(f, chunks2[0]);
+        self.canvas.render(f, chunks2[1]);
+        self.cmd_stream.render(f, chunks1[1]);
     }
 }
 
@@ -87,11 +99,14 @@ where
 
             match self.cmd_stream.read().map_err(AppError::ReadCommand)? {
                 Command::Quit => break,
-                Command::Unknown => {}
+                Command::Nop => {}
                 Command::Direction(dir) => self.canvas.move_cursor(dir),
                 Command::Palette(id) => {
                     let color = *self.palette.color(id);
                     self.canvas.edit(color);
+                }
+                Command::SetPalette(palette_id, rgb) => {
+                    *(self.palette.color_mut(palette_id)) = rgb;
                 }
             }
         }
@@ -110,7 +125,7 @@ mod tests {
     fn test_app_run_without_error() {
         let img = Image::read_from_file("tests/image/00.png").unwrap();
         let cs = ProgrammedEvent::new(vec![
-            Command::Unknown,
+            Command::Nop,
             Command::Direction(Direction::Up),
             Command::Direction(Direction::Down),
             Command::Direction(Direction::Left),
@@ -122,8 +137,8 @@ mod tests {
             Command::Palette(PaletteID::ID4),
             Command::Palette(PaletteID::ID5),
             Command::Quit,
-            Command::Unknown,
-            Command::Unknown,
+            Command::Nop,
+            Command::Nop,
         ]);
         let mut app = App::new(img, cs);
         assert!(matches!(app.run(), Ok(_)));

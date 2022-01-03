@@ -11,8 +11,6 @@ use crate::image::Rgb;
 
 use super::Widget;
 
-const NUM_COLORS: usize = 6;
-
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum PaletteID {
     ID0 = 0,
@@ -23,8 +21,13 @@ pub enum PaletteID {
     ID5 = 5,
 }
 
+impl PaletteID {
+    pub const NUM_COLORS: usize = 6;
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Palette {
-    colors: [Rgb; NUM_COLORS],
+    colors: [Rgb; PaletteID::NUM_COLORS],
 }
 
 impl Palette {
@@ -64,18 +67,10 @@ impl Widget for Palette {
             .collect::<Vec<Span<'static>>>();
 
         let text: Text<'static> = vec![
-            vec![
-                Span::raw("W  E  R"),
-                Span::styled("_", Style::default().fg(Color::Black)),
-            ]
-            .into(),
+            vec![Span::styled("_", Style::default().fg(Color::Black))].into(),
             up.into(),
             vec![].into(),
-            vec![
-                Span::raw("S  D  F"),
-                Span::styled("_", Style::default().fg(Color::Black)),
-            ]
-            .into(),
+            vec![Span::styled("_", Style::default().fg(Color::Black))].into(),
             down.into(),
         ]
         .into();
@@ -102,5 +97,30 @@ impl Default for Palette {
                 Rgb(0, 0, 255),
             ],
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_color() {
+        let p = Palette::default();
+        assert_eq!(p.color(PaletteID::ID0), &Rgb(0, 0, 0));
+        assert_eq!(p.color(PaletteID::ID3), &Rgb(255, 0, 0));
+    }
+
+    #[test]
+    fn test_color_mut() {
+        let mut p = Palette::default();
+        let cp = p.clone();
+
+        assert_eq!(p.color(PaletteID::ID0), &Rgb(0, 0, 0));
+        *p.color_mut(PaletteID::ID0) = Rgb(3, 4, 5);
+        assert_eq!(p.color(PaletteID::ID0), &Rgb(3, 4, 5));
+
+        *p.color_mut(PaletteID::ID0) = Rgb(0, 0, 0);
+        assert_eq!(p, cp);
     }
 }
