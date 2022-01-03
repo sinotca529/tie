@@ -1,3 +1,6 @@
+use self::keyconfig::KeyConfig;
+use super::{Command, CommandStream};
+use crate::{image::Rgb, widget::Widget};
 use crossterm::event::{self, KeyCode};
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -8,61 +11,34 @@ use tui::{
     widgets::{Block, Borders, Paragraph, Wrap},
 };
 
-use crate::{
-    image::Rgb,
-    widget::{palette::PaletteID, Widget},
-};
-
-use super::{Command, CommandStream, Direction};
+mod keyconfig;
 
 /// Fetch key event and use it as Command
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct KeyInput {
     cmd_line_content: String,
+    key_config: KeyConfig,
 }
 
 impl KeyInput {
     pub fn new() -> Self {
         Self {
             cmd_line_content: String::new(),
+            key_config: KeyConfig::default(),
         }
     }
 }
 
 impl KeyInput {
-    /// convert KeyCode to Command.
-    fn keycode2command(keycode: &KeyCode) -> Command {
-        match keycode {
-            KeyCode::Char('q') => Command::Quit,
-            KeyCode::Char('h') => Command::Direction(Direction::Left),
-            KeyCode::Char('j') => Command::Direction(Direction::Down),
-            KeyCode::Char('k') => Command::Direction(Direction::Up),
-            KeyCode::Char('l') => Command::Direction(Direction::Right),
-            KeyCode::Char('w') => Command::Palette(PaletteID::ID0),
-            KeyCode::Char('e') => Command::Palette(PaletteID::ID1),
-            KeyCode::Char('r') => Command::Palette(PaletteID::ID2),
-            KeyCode::Char('s') => Command::Palette(PaletteID::ID3),
-            KeyCode::Char('d') => Command::Palette(PaletteID::ID4),
-            KeyCode::Char('f') => Command::Palette(PaletteID::ID5),
-            _ => Command::Nop,
-        }
-    }
-
-    /// convert Into<&str> to Command.
-    fn str2command(s: impl AsRef<str>) -> Command {
+    /// convert self.cmd_line_content to Command.
+    fn parse_cmd(&self) -> Command {
         static RE_SET_COLOR: Lazy<Regex> =
             Lazy::new(|| Regex::new(r"^: *set +(\w) +(\d+) +(\d+) +(\d+) *$").unwrap());
 
-        if let Some(cap) = RE_SET_COLOR.captures(s.as_ref()) {
-            let id = match &cap[1] {
-                "w" => Some(PaletteID::ID0),
-                "e" => Some(PaletteID::ID1),
-                "r" => Some(PaletteID::ID2),
-                "a" => Some(PaletteID::ID3),
-                "s" => Some(PaletteID::ID4),
-                "d" => Some(PaletteID::ID5),
-                _ => None,
-            };
+        if let Some(cap) = RE_SET_COLOR.captures(&self.cmd_line_content) {
+            let ch = cap[1].chars().next().unwrap();
+            let id = self.key_config.char2palette_id(ch);
+
             if let (Some(id), Ok(r), Ok(g), Ok(b)) =
                 (id, cap[2].parse(), cap[3].parse(), cap[4].parse())
             {
@@ -76,7 +52,7 @@ impl KeyInput {
     fn process_text_command(&mut self, keycode: &KeyCode) -> Command {
         match keycode {
             KeyCode::Enter => {
-                let cmd = Self::str2command(&self.cmd_line_content);
+                let cmd = self.parse_cmd();
                 self.cmd_line_content.clear();
                 cmd
             }
@@ -97,7 +73,11 @@ impl Widget for KeyInput {
     fn render(&self, f: &mut tui::Frame<impl tui::backend::Backend>, rect: tui::layout::Rect) {
         if self.cmd_line_content.is_empty() {
             let cmd_line = Block::default().borders(Borders::ALL);
-            let msg = Paragraph::new(Text::raw("Begin input command by ':'"))
+            let msg = format!(
+                "Begin input command by '{}'",
+                self.key_config.cmd_line_prefix()
+            );
+            let msg = Paragraph::new(Text::raw(msg))
                 .block(cmd_line)
                 .style(
                     Style::default()
@@ -127,12 +107,17 @@ impl CommandStream for KeyInput {
     fn read(&mut self) -> Result<Command, Self::Error> {
         event::read().map(|op| {
             if self.cmd_line_content.is_empty() {
+                let cmd_prefix = self.key_config.cmd_line_prefix();
                 match op {
-                    event::Event::Key(key) if key.code == KeyCode::Char(':') => {
-                        self.cmd_line_content.push(':');
+                    event::Event::Key(key) if key.code == KeyCode::Char(cmd_prefix) => {
+                        self.cmd_line_content.push(cmd_prefix);
                         Command::Nop
                     }
-                    event::Event::Key(key) => Self::keycode2command(&key.code),
+                    event::Event::Key(key) => self
+                        .key_config
+                        .get(&key.code)
+                        .copied()
+                        .unwrap_or(Command::Nop),
                     _ => Command::Nop,
                 }
             } else {

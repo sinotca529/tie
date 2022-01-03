@@ -11,8 +11,6 @@ use crate::image::Rgb;
 
 use super::Widget;
 
-const NUM_COLORS: usize = 6;
-
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum PaletteID {
     ID0 = 0,
@@ -23,8 +21,12 @@ pub enum PaletteID {
     ID5 = 5,
 }
 
+impl PaletteID {
+    pub const NUM_COLORS: usize = 6;
+}
+
 pub struct Palette {
-    colors: [Rgb; NUM_COLORS],
+    colors: [Rgb; PaletteID::NUM_COLORS],
 }
 
 impl Palette {
@@ -64,18 +66,10 @@ impl Widget for Palette {
             .collect::<Vec<Span<'static>>>();
 
         let text: Text<'static> = vec![
-            vec![
-                Span::raw("W  E  R"),
-                Span::styled("_", Style::default().fg(Color::Black)),
-            ]
-            .into(),
+            vec![Span::styled("_", Style::default().fg(Color::Black))].into(),
             up.into(),
             vec![].into(),
-            vec![
-                Span::raw("S  D  F"),
-                Span::styled("_", Style::default().fg(Color::Black)),
-            ]
-            .into(),
+            vec![Span::styled("_", Style::default().fg(Color::Black))].into(),
             down.into(),
         ]
         .into();
