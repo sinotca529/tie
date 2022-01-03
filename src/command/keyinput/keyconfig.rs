@@ -59,3 +59,41 @@ impl Default for KeyConfig {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_palette_id2char() {
+        let kc = KeyConfig::default();
+        assert_eq!(kc.palette_id2char(PaletteID::ID0), 'w');
+        assert_eq!(kc.palette_id2char(PaletteID::ID1), 'e');
+    }
+
+    #[test]
+    fn test_char2palette_id() {
+        let kc = KeyConfig::default();
+        assert_eq!(kc.char2palette_id('w'), Some(PaletteID::ID0));
+        assert_eq!(kc.char2palette_id('e'), Some(PaletteID::ID1));
+        assert_eq!(kc.char2palette_id('W'), None);
+    }
+
+    #[test]
+    fn test_get() {
+        let kc = KeyConfig::default();
+        assert_eq!(
+            kc.get(&KeyCode::Char('h')),
+            Some(&Command::Direction(Direction::Left))
+        );
+        assert_eq!(
+            kc.get(&KeyCode::Char('r')),
+            Some(&Command::Palette(PaletteID::ID2))
+        );
+        assert_eq!(kc.get(&KeyCode::Char('!')), None);
+    }
+
+    #[test]
+    fn test_cmd_line_prefix() {
+        assert_eq!(KeyConfig::default().cmd_line_prefix(), ':');
+    }
+}

@@ -25,6 +25,7 @@ impl PaletteID {
     pub const NUM_COLORS: usize = 6;
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Palette {
     colors: [Rgb; PaletteID::NUM_COLORS],
 }
@@ -96,5 +97,30 @@ impl Default for Palette {
                 Rgb(0, 0, 255),
             ],
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_color() {
+        let p = Palette::default();
+        assert_eq!(p.color(PaletteID::ID0), &Rgb(0, 0, 0));
+        assert_eq!(p.color(PaletteID::ID3), &Rgb(255, 0, 0));
+    }
+
+    #[test]
+    fn test_color_mut() {
+        let mut p = Palette::default();
+        let cp = p.clone();
+
+        assert_eq!(p.color(PaletteID::ID0), &Rgb(0, 0, 0));
+        *p.color_mut(PaletteID::ID0) = Rgb(3, 4, 5);
+        assert_eq!(p.color(PaletteID::ID0), &Rgb(3, 4, 5));
+
+        *p.color_mut(PaletteID::ID0) = Rgb(0, 0, 0);
+        assert_eq!(p, cp);
     }
 }

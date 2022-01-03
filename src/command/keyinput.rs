@@ -129,3 +129,74 @@ impl CommandStream for KeyInput {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::widget::palette::PaletteID;
+
+    use super::*;
+
+    fn new_key_input(cmd_line_content: impl Into<String>) -> KeyInput {
+        KeyInput {
+            cmd_line_content: cmd_line_content.into(),
+            key_config: KeyConfig::default(),
+        }
+    }
+
+    #[test]
+    fn test_new() {
+        let ki = KeyInput::new();
+        assert_eq!(ki.cmd_line_content, String::new());
+        assert_eq!(ki.key_config, KeyConfig::default());
+    }
+
+    #[test]
+    fn test_parse_cmd() {
+        let ki = new_key_input("");
+        assert_eq!(ki.parse_cmd(), Command::Nop);
+
+        let ki = new_key_input(":");
+        assert_eq!(ki.parse_cmd(), Command::Nop);
+
+        let ki = new_key_input(":set w 255 255 128");
+        assert_eq!(
+            ki.parse_cmd(),
+            Command::SetPalette(PaletteID::ID0, Rgb(255, 255, 128))
+        );
+
+        let ki = new_key_input(":  set  w 255   255  128  ");
+        assert_eq!(
+            ki.parse_cmd(),
+            Command::SetPalette(PaletteID::ID0, Rgb(255, 255, 128))
+        );
+
+        let ki = new_key_input(":  set  w 255   255  128  ;");
+        assert_eq!(ki.parse_cmd(), Command::Nop);
+
+        let ki = new_key_input(":set w 999 255  128");
+        assert_eq!(ki.parse_cmd(), Command::Nop);
+
+        let ki = new_key_input(":set W 275 255 128");
+        assert_eq!(ki.parse_cmd(), Command::Nop);
+    }
+
+    #[test]
+    fn test_process_text_command() {
+        let mut ki = new_key_input(":");
+        assert_eq!(ki.process_text_command(&KeyCode::Char('s')), Command::Nop);
+        assert_eq!(ki.cmd_line_content, String::from(":s"));
+
+        assert_eq!(ki.process_text_command(&KeyCode::Backspace), Command::Nop);
+        assert_eq!(ki.cmd_line_content, String::from(":"));
+
+        assert_eq!(ki.process_text_command(&KeyCode::Tab), Command::Nop);
+        assert_eq!(ki.cmd_line_content, String::from(":"));
+
+        let mut ki = new_key_input(":set w 255 255 128");
+        assert_eq!(
+            ki.process_text_command(&KeyCode::Enter),
+            Command::SetPalette(PaletteID::ID0, Rgb(255, 255, 128))
+        );
+        assert_eq!(ki.cmd_line_content, String::new());
+    }
+}
