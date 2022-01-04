@@ -13,7 +13,11 @@ use tui::{
 use crate::{
     command::{Command, CommandStream},
     image::Image,
-    widget::{canvas::Canvas, palette::Palette, Widget},
+    widget::{
+        canvas::{Canvas, CanvasError},
+        palette::Palette,
+        Widget,
+    },
 };
 
 #[derive(Error, Debug)]
@@ -22,10 +26,12 @@ pub enum AppError<E: 'static + std::error::Error + std::fmt::Debug> {
     InitTerm(#[source] std::io::Error),
     #[error("IO error in terminal finalization.")]
     FinTerm(#[source] std::io::Error),
-    #[error("IO error in drawing process.")]
-    Draw(#[source] std::io::Error),
+    #[error("IO error in rendering process.")]
+    Render(#[source] std::io::Error),
     #[error("Error in read command.")]
     ReadCommand(#[source] E),
+    #[error("Error in canvas.")]
+    CanvasError(#[source] CanvasError),
 }
 
 pub struct App<T: CommandStream> {
@@ -95,7 +101,9 @@ where
         terminal: &mut Terminal<impl Backend>,
     ) -> Result<(), AppError<CS::Error>> {
         loop {
-            terminal.draw(|f| self.render(f)).map_err(AppError::Draw)?;
+            terminal
+                .draw(|f| self.render(f))
+                .map_err(AppError::Render)?;
 
             match self.cmd_stream.read().map_err(AppError::ReadCommand)? {
                 Command::Quit => break,
@@ -103,10 +111,14 @@ where
                 Command::Direction(dir) => self.canvas.move_cursor(dir),
                 Command::Palette(id) => {
                     let color = *self.palette.color(id);
-                    self.canvas.edit(color);
+                    self.canvas.paint(color);
                 }
                 Command::SetPalette(palette_id, rgb) => {
                     *(self.palette.color_mut(palette_id)) = rgb;
+                }
+                Command::Save => self.canvas.save().map_err(AppError::CanvasError)?,
+                Command::SaveAs(path) => {
+                    self.canvas.save_as(path).map_err(AppError::CanvasError)?
                 }
             }
         }
@@ -118,29 +130,40 @@ where
 mod tests {
     use crate::command::programmed::ProgrammedEvent;
     use crate::command::Direction;
-    use crate::widget::palette::PaletteID;
+    use crate::image::Rgb;
+    use crate::widget::palette::PaletteCellID;
 
     use super::*;
     #[test]
     fn test_app_run_without_error() {
-        let img = Image::read_from_file("tests/image/00.png").unwrap();
+        let tmp_path1 = "tests/image/app_test_app_run_without_error1.png";
+        let tmp_path2 = "tests/image/app_test_app_run_without_error2.png";
+        std::fs::copy("tests/image/00.png", tmp_path1).unwrap();
+
+        let img = Image::open(tmp_path1).unwrap();
         let cs = ProgrammedEvent::new(vec![
             Command::Nop,
             Command::Direction(Direction::Up),
             Command::Direction(Direction::Down),
             Command::Direction(Direction::Left),
             Command::Direction(Direction::Right),
-            Command::Palette(PaletteID::ID0),
-            Command::Palette(PaletteID::ID1),
-            Command::Palette(PaletteID::ID2),
-            Command::Palette(PaletteID::ID3),
-            Command::Palette(PaletteID::ID4),
-            Command::Palette(PaletteID::ID5),
+            Command::Palette(PaletteCellID::ID0),
+            Command::Palette(PaletteCellID::ID1),
+            Command::Palette(PaletteCellID::ID2),
+            Command::Palette(PaletteCellID::ID3),
+            Command::Palette(PaletteCellID::ID4),
+            Command::Palette(PaletteCellID::ID5),
+            Command::SetPalette(PaletteCellID::ID0, Rgb(0, 0, 0)),
+            Command::Save,
+            Command::SaveAs(tmp_path2.into()),
             Command::Quit,
             Command::Nop,
             Command::Nop,
         ]);
         let mut app = App::new(img, cs);
         assert!(matches!(app.run(), Ok(_)));
+
+        std::fs::remove_file(tmp_path1).unwrap();
+        std::fs::remove_file(tmp_path2).unwrap();
     }
 }

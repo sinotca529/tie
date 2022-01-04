@@ -1,4 +1,8 @@
-use std::{fs::File, path::Path};
+use std::{
+    fs::File,
+    io::BufWriter,
+    path::{Path, PathBuf},
+};
 use thiserror::Error;
 use tui::{
     style::{Color, Style},
@@ -9,6 +13,7 @@ use tui::{
 pub struct Rgb(pub u8, pub u8, pub u8);
 
 impl Rgb {
+    /// Opposite color of self.
     fn opposite(&self) -> Self {
         Self(255 - self.0, 255 - self.1, 255 - self.2)
     }
@@ -22,8 +27,11 @@ impl From<Rgb> for tui::style::Color {
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Image {
+    /// Path of the image file.
+    path: PathBuf,
     width: u32,
     height: u32,
+    /// Data of image described as text to render the image in terminal.
     data: Text<'static>,
 }
 
@@ -31,20 +39,26 @@ pub struct Image {
 pub enum ImageError {
     #[error("IO error.")]
     IO(#[source] std::io::Error),
+
     #[error("This image type is not supported.")]
     UnsupportedImgType,
+
     #[error("Failed to decode.")]
     Decode(#[source] png::DecodingError),
+
+    #[error("Failed to encode.")]
+    Encode(#[source] png::EncodingError),
 }
 
 impl Image {
     const CURSOR_STR: &'static str = "[]";
 
     /// Read image from file.
-    pub fn read_from_file(path: impl AsRef<Path>) -> Result<Image, ImageError> {
+    /// This function can open PNG whose color type is RGB and color depth is 8-bit.
+    pub fn open(path: impl AsRef<Path>) -> Result<Image, ImageError> {
         dbg!(path.as_ref());
 
-        let file = File::open(path).map_err(ImageError::IO)?;
+        let file = File::open(&path).map_err(ImageError::IO)?;
         let decoder = png::Decoder::new(&file);
         let mut reader = decoder.read_info().map_err(ImageError::Decode)?;
         let mut buf = vec![0; reader.output_buffer_size()];
@@ -62,6 +76,9 @@ impl Image {
 
         assert_eq!((width * height * 3) as usize, bytes.len());
 
+        // Each pixel is shown by two characters.
+        // Normally, the foreground color and background color are the same.
+        // The cursor will be shown by setting the foreground color of the corresponding pixel to another color.
         let data: Text<'static> = bytes
             .chunks(3 * width as usize)
             .map(|rgbs: &[u8]| {
@@ -81,6 +98,7 @@ impl Image {
         file.sync_all().map_err(ImageError::IO)?;
 
         Ok(Image {
+            path: path.as_ref().to_path_buf(),
             width,
             height,
             data,
@@ -106,19 +124,58 @@ impl Image {
     }
 
     /// Change color of the pixel at `coord` with `color`.
-    pub fn edit(&mut self, color: Rgb, coord: &(usize, usize)) {
+    pub fn paint(&mut self, color: Rgb, coord: &(usize, usize)) {
         self.assert_coord(coord);
-        *(self.fg_color_mut(coord)) = color.into();
-        *(self.bg_color_mut(coord)) = color.into();
+        *self.fg_color_mut(coord) = color.into();
+        *self.bg_color_mut(coord) = color.into();
+    }
+
+    /// Save the image as a file specified by the path.
+    pub fn save_as(&mut self, path: impl AsRef<Path>) -> Result<(), ImageError> {
+        let file = File::create(&path).map_err(ImageError::IO)?;
+        let w = &mut BufWriter::new(file);
+
+        let mut encoder = png::Encoder::new(w, self.width(), self.height());
+        encoder.set_color(png::ColorType::Rgb);
+        encoder.set_depth(png::BitDepth::Eight);
+
+        let mut writer = encoder.write_header().map_err(ImageError::Encode)?;
+        writer
+            .write_image_data(&self.rgb_vec())
+            .map_err(ImageError::Encode)?;
+
+        self.path = path.as_ref().to_path_buf();
+
+        Ok(())
+    }
+
+    /// Save the image.
+    pub fn save(&self) -> Result<(), ImageError> {
+        let file = File::create(&self.path).map_err(ImageError::IO)?;
+        let w = &mut BufWriter::new(file);
+
+        let mut encoder = png::Encoder::new(w, self.width(), self.height());
+        encoder.set_color(png::ColorType::Rgb);
+        encoder.set_depth(png::BitDepth::Eight);
+
+        let mut writer = encoder.write_header().map_err(ImageError::Encode)?;
+        writer
+            .write_image_data(&self.rgb_vec())
+            .map_err(ImageError::Encode)?;
+
+        Ok(())
     }
 }
 
 impl Image {
+    /// Check the coordinate is in the image.
+    /// If it is not, this function will panic.
     fn assert_coord(&self, coord: &(usize, usize)) {
         assert!(coord.0 < self.width() as usize);
         assert!(coord.1 < self.height() as usize);
     }
 
+    /// The background color of specified coordinate.
     fn bg_color(&self, coord: &(usize, usize)) -> &Color {
         self.assert_coord(coord);
         match self.data.lines[coord.1].0[coord.0].style.bg {
@@ -127,6 +184,7 @@ impl Image {
         }
     }
 
+    /// The mutable reference to the background color of specified coordinate.
     fn bg_color_mut(&mut self, coord: &(usize, usize)) -> &mut Color {
         self.assert_coord(coord);
         match self.data.lines[coord.1].0[coord.0].style.bg {
@@ -135,12 +193,32 @@ impl Image {
         }
     }
 
+    ///  The mutable reference to the foreground color of specified coordinate.
     fn fg_color_mut(&mut self, coord: &(usize, usize)) -> &mut Color {
         self.assert_coord(coord);
         match self.data.lines[coord.1].0[coord.0].style.fg {
             Some(ref mut color) => color,
             None => unreachable!(),
         }
+    }
+
+    /// An array containing a RGB sequence.
+    fn rgb_vec(&self) -> Vec<u8> {
+        let mut rgb_vec = Vec::with_capacity((self.height() * self.width() * 3) as usize);
+
+        for y in 0..self.height() as usize {
+            for x in 0..self.width() as usize {
+                let color = self.bg_color(&(x, y));
+                if let Color::Rgb(r, g, b) = color {
+                    rgb_vec.push(*r);
+                    rgb_vec.push(*g);
+                    rgb_vec.push(*b);
+                } else {
+                    unreachable!()
+                }
+            }
+        }
+        rgb_vec
     }
 }
 
@@ -159,7 +237,7 @@ mod tests {
     /// This test checks whether `Image::read_from_file` can parse `./tests/image/01.png`.
     #[test]
     fn test_read_from() {
-        let img = Image::read_from_file("./tests/image/00.png");
+        let img = Image::open("./tests/image/00.png");
         assert!(img.is_ok());
         let img = img.unwrap();
 
@@ -195,7 +273,7 @@ mod tests {
     /// This test checks : bg_color, bg_color_mut, fg_color_mut
     #[test]
     fn test_fg_bg() {
-        let img = Image::read_from_file("./tests/image/00.png");
+        let img = Image::open("./tests/image/00.png");
         assert!(img.is_ok());
         let mut img = img.unwrap();
 
@@ -231,26 +309,26 @@ mod tests {
     /// This test checks whether `Image::read_from_file` return `ImageError::IO` when it passed a path to non-exist file.
     #[test]
     fn test_read_from_error_io() {
-        let img = Image::read_from_file("./tests/image/non-exist.png");
+        let img = Image::open("./tests/image/non-exist.png");
         assert!(matches!(img, Err(ImageError::IO(_))));
     }
 
     /// This test checks whether `Image::read_from_file` return `ImageError::UnsupportedImgType` error when it passed a path to transparent png file.
     #[test]
     fn test_read_from_error_unsupported() {
-        let img = Image::read_from_file("./tests/image/transparent.png");
+        let img = Image::open("./tests/image/transparent.png");
         assert!(matches!(img, Err(ImageError::UnsupportedImgType)));
     }
     /// This test checks whether `Image::read_from_file` return `ImageError::Decode` error when it passed a path to non-png file.
     #[test]
     fn test_read_from_error_decode() {
-        let img = Image::read_from_file("./tests/image/not-png.txt");
+        let img = Image::open("./tests/image/not-png.txt");
         assert!(matches!(img, Err(ImageError::Decode(_))));
     }
 
     #[test]
     fn test_into_text() {
-        let img = Image::read_from_file("./tests/image/00.png").unwrap();
+        let img = Image::open("./tests/image/00.png").unwrap();
         let text: Text<'static> = img.clone().into();
         assert_eq!(img.data, text);
     }
@@ -264,7 +342,7 @@ mod tests {
 
     #[test]
     fn test_into_text_with_cursor() {
-        let img = Image::read_from_file("./tests/image/00.png").unwrap();
+        let img = Image::open("./tests/image/00.png").unwrap();
         let (w, h) = (img.width as usize, img.height as usize);
 
         let cursor_coord = (3, 1);
@@ -293,20 +371,77 @@ mod tests {
 
     #[test]
     fn boudary_test_edit() {
-        let mut img = Image::read_from_file("./tests/image/00.png").unwrap();
+        let mut img = Image::open("./tests/image/00.png").unwrap();
         let (w, h) = (img.width as usize, img.height as usize);
 
         let coord = (w - 1, h - 1);
-        img.edit(Rgb(0, 0, 0), &coord);
+        img.paint(Rgb(0, 0, 0), &coord);
     }
 
     #[test]
     fn test_edit() {
-        let mut img = Image::read_from_file("./tests/image/00.png").unwrap();
+        let mut img = Image::open("./tests/image/00.png").unwrap();
         let coord = (img.width as usize - 1, img.height as usize - 1);
         let color = Rgb(12, 23, 34);
-        img.edit(color, &coord);
+        img.paint(color, &coord);
         assert_eq!(*(img.fg_color_mut(&coord)), color.into());
         assert_eq!(*(img.bg_color(&coord)), color.into());
+    }
+
+    #[test]
+    fn test_save_as() {
+        let tmp_path = "./tests/image/image_test_save_as.png";
+
+        // edit and save img.
+        let mut img = Image::open("./tests/image/00.png").unwrap();
+        let coord = (img.width as usize - 1, img.height as usize - 1);
+        let color = Rgb(128, 128, 128);
+        img.paint(color, &coord);
+        img.save_as(tmp_path).unwrap();
+        assert_eq!(img.path, PathBuf::from(tmp_path));
+
+        // check edited img.
+        let correct = Image::open("./tests/image/01.png").unwrap();
+        let edited = Image::open(tmp_path).unwrap();
+
+        assert_eq!(correct.width, edited.width);
+        assert_eq!(correct.height, edited.height);
+        assert_eq!(correct.data, edited.data);
+
+        // remove new img.
+        std::fs::remove_file(tmp_path).unwrap();
+    }
+
+    #[test]
+    fn test_save() {
+        let tmp_path = "./tests/image/cp_image_test_save.png";
+
+        let original = Image::open("./tests/image/00.png").unwrap();
+        std::fs::copy("./tests/image/00.png", tmp_path).unwrap();
+
+        // saving without edit will not change file.
+        let copy = Image::open(tmp_path).unwrap();
+        copy.save().unwrap();
+
+        let mut copy = Image::open(tmp_path).unwrap();
+        assert_eq!(original.width, copy.width);
+        assert_eq!(original.height, copy.height);
+        assert_eq!(original.data, copy.data);
+
+        // save after edit test.
+        let coord = (copy.width as usize - 1, copy.height as usize - 1);
+        let color = Rgb(128, 128, 128);
+        copy.paint(color, &coord);
+        copy.save().unwrap();
+
+        let correct = Image::open("./tests/image/01.png").unwrap();
+        let copy = Image::open(tmp_path).unwrap();
+
+        assert_eq!(correct.width, copy.width);
+        assert_eq!(correct.height, copy.height);
+        assert_eq!(correct.data, copy.data);
+
+        // remove new img.
+        std::fs::remove_file(tmp_path).unwrap();
     }
 }

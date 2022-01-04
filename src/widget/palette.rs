@@ -12,7 +12,7 @@ use crate::image::Rgb;
 use super::Widget;
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub enum PaletteID {
+pub enum PaletteCellID {
     ID0 = 0,
     ID1 = 1,
     ID2 = 2,
@@ -21,24 +21,22 @@ pub enum PaletteID {
     ID5 = 5,
 }
 
-impl PaletteID {
-    pub const NUM_COLORS: usize = 6;
-}
-
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Palette {
-    colors: [Rgb; PaletteID::NUM_COLORS],
+    cells: [Rgb; Self::NUM_CELL],
 }
 
 impl Palette {
+    pub const NUM_CELL: usize = 6;
+
     /// Return a reference to color of palette.
-    pub fn color(&self, id: PaletteID) -> &Rgb {
-        &self.colors[id as usize]
+    pub fn color(&self, id: PaletteCellID) -> &Rgb {
+        &self.cells[id as usize]
     }
 
     /// Return a mutable reference to color of palette.
-    pub fn color_mut(&mut self, id: PaletteID) -> &mut Rgb {
-        &mut self.colors[id as usize]
+    pub fn color_mut(&mut self, id: PaletteCellID) -> &mut Rgb {
+        &mut self.cells[id as usize]
     }
 }
 
@@ -46,7 +44,7 @@ impl Widget for Palette {
     fn render(&self, f: &mut Frame<impl Backend>, rect: Rect) {
         let up = (0..3)
             .map(|i| {
-                let color = self.colors[i].into();
+                let color = self.cells[i].into();
                 vec![
                     Span::styled("[]", Style::default().fg(color).bg(color)),
                     Span::raw(" "),
@@ -57,7 +55,7 @@ impl Widget for Palette {
 
         let down = (3..6)
             .map(|i| {
-                let color = self.colors[i].into();
+                let color = self.cells[i].into();
                 vec![
                     Span::styled("[]", Style::default().fg(color).bg(color)),
                     Span::raw(" "),
@@ -88,7 +86,7 @@ impl Widget for Palette {
 impl Default for Palette {
     fn default() -> Self {
         Self {
-            colors: [
+            cells: [
                 Rgb(0, 0, 0),
                 Rgb(127, 127, 127),
                 Rgb(255, 255, 255),
@@ -107,8 +105,8 @@ mod tests {
     #[test]
     fn test_color() {
         let p = Palette::default();
-        assert_eq!(p.color(PaletteID::ID0), &Rgb(0, 0, 0));
-        assert_eq!(p.color(PaletteID::ID3), &Rgb(255, 0, 0));
+        assert_eq!(p.color(PaletteCellID::ID0), &Rgb(0, 0, 0));
+        assert_eq!(p.color(PaletteCellID::ID3), &Rgb(255, 0, 0));
     }
 
     #[test]
@@ -116,11 +114,11 @@ mod tests {
         let mut p = Palette::default();
         let cp = p.clone();
 
-        assert_eq!(p.color(PaletteID::ID0), &Rgb(0, 0, 0));
-        *p.color_mut(PaletteID::ID0) = Rgb(3, 4, 5);
-        assert_eq!(p.color(PaletteID::ID0), &Rgb(3, 4, 5));
+        assert_eq!(p.color(PaletteCellID::ID0), &Rgb(0, 0, 0));
+        *p.color_mut(PaletteCellID::ID0) = Rgb(3, 4, 5);
+        assert_eq!(p.color(PaletteCellID::ID0), &Rgb(3, 4, 5));
 
-        *p.color_mut(PaletteID::ID0) = Rgb(0, 0, 0);
+        *p.color_mut(PaletteCellID::ID0) = Rgb(0, 0, 0);
         assert_eq!(p, cp);
     }
 }
