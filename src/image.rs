@@ -13,6 +13,7 @@ use tui::{
 pub struct Rgb(pub u8, pub u8, pub u8);
 
 impl Rgb {
+    /// Opposite color of self.
     fn opposite(&self) -> Self {
         Self(255 - self.0, 255 - self.1, 255 - self.2)
     }
@@ -26,9 +27,11 @@ impl From<Rgb> for tui::style::Color {
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Image {
+    /// Path of the image file.
     path: PathBuf,
     width: u32,
     height: u32,
+    /// Data of image described as text to render the image in terminal.
     data: Text<'static>,
 }
 
@@ -51,6 +54,7 @@ impl Image {
     const CURSOR_STR: &'static str = "[]";
 
     /// Read image from file.
+    /// This function can open PNG whose color type is RGB and color depth is 8-bit.
     pub fn open(path: impl AsRef<Path>) -> Result<Image, ImageError> {
         dbg!(path.as_ref());
 
@@ -72,6 +76,9 @@ impl Image {
 
         assert_eq!((width * height * 3) as usize, bytes.len());
 
+        // Each pixel is shown by two characters.
+        // Normally, the foreground color and background color are the same.
+        // The cursor will be shown by setting the foreground color of the corresponding pixel to another color.
         let data: Text<'static> = bytes
             .chunks(3 * width as usize)
             .map(|rgbs: &[u8]| {
@@ -117,12 +124,13 @@ impl Image {
     }
 
     /// Change color of the pixel at `coord` with `color`.
-    pub fn edit(&mut self, color: Rgb, coord: &(usize, usize)) {
+    pub fn paint(&mut self, color: Rgb, coord: &(usize, usize)) {
         self.assert_coord(coord);
-        *(self.fg_color_mut(coord)) = color.into();
-        *(self.bg_color_mut(coord)) = color.into();
+        *self.fg_color_mut(coord) = color.into();
+        *self.bg_color_mut(coord) = color.into();
     }
 
+    /// Save the image as a file specified by the path.
     pub fn save_as(&mut self, path: impl AsRef<Path>) -> Result<(), ImageError> {
         let file = File::create(&path).map_err(ImageError::IO)?;
         let w = &mut BufWriter::new(file);
@@ -141,6 +149,7 @@ impl Image {
         Ok(())
     }
 
+    /// Save the image.
     pub fn save(&self) -> Result<(), ImageError> {
         let file = File::create(&self.path).map_err(ImageError::IO)?;
         let w = &mut BufWriter::new(file);
@@ -159,11 +168,14 @@ impl Image {
 }
 
 impl Image {
+    /// Check the coordinate is in the image.
+    /// If it is not, this function will panic.
     fn assert_coord(&self, coord: &(usize, usize)) {
         assert!(coord.0 < self.width() as usize);
         assert!(coord.1 < self.height() as usize);
     }
 
+    /// The background color of specified coordinate.
     fn bg_color(&self, coord: &(usize, usize)) -> &Color {
         self.assert_coord(coord);
         match self.data.lines[coord.1].0[coord.0].style.bg {
@@ -172,6 +184,7 @@ impl Image {
         }
     }
 
+    /// The mutable reference to the background color of specified coordinate.
     fn bg_color_mut(&mut self, coord: &(usize, usize)) -> &mut Color {
         self.assert_coord(coord);
         match self.data.lines[coord.1].0[coord.0].style.bg {
@@ -180,6 +193,7 @@ impl Image {
         }
     }
 
+    ///  The mutable reference to the foreground color of specified coordinate.
     fn fg_color_mut(&mut self, coord: &(usize, usize)) -> &mut Color {
         self.assert_coord(coord);
         match self.data.lines[coord.1].0[coord.0].style.fg {
@@ -188,7 +202,7 @@ impl Image {
         }
     }
 
-    /// Return an array containing a RGB sequence.
+    /// An array containing a RGB sequence.
     fn rgb_vec(&self) -> Vec<u8> {
         let mut rgb_vec = Vec::with_capacity((self.height() * self.width() * 3) as usize);
 
@@ -361,7 +375,7 @@ mod tests {
         let (w, h) = (img.width as usize, img.height as usize);
 
         let coord = (w - 1, h - 1);
-        img.edit(Rgb(0, 0, 0), &coord);
+        img.paint(Rgb(0, 0, 0), &coord);
     }
 
     #[test]
@@ -369,8 +383,65 @@ mod tests {
         let mut img = Image::open("./tests/image/00.png").unwrap();
         let coord = (img.width as usize - 1, img.height as usize - 1);
         let color = Rgb(12, 23, 34);
-        img.edit(color, &coord);
+        img.paint(color, &coord);
         assert_eq!(*(img.fg_color_mut(&coord)), color.into());
         assert_eq!(*(img.bg_color(&coord)), color.into());
+    }
+
+    #[test]
+    fn test_save_as() {
+        let tmp_path = "./tests/image/image_test_save_as.png";
+
+        // edit and save img.
+        let mut img = Image::open("./tests/image/00.png").unwrap();
+        let coord = (img.width as usize - 1, img.height as usize - 1);
+        let color = Rgb(128, 128, 128);
+        img.paint(color, &coord);
+        img.save_as(tmp_path).unwrap();
+        assert_eq!(img.path, PathBuf::from(tmp_path));
+
+        // check edited img.
+        let correct = Image::open("./tests/image/01.png").unwrap();
+        let edited = Image::open(tmp_path).unwrap();
+
+        assert_eq!(correct.width, edited.width);
+        assert_eq!(correct.height, edited.height);
+        assert_eq!(correct.data, edited.data);
+
+        // remove new img.
+        std::fs::remove_file(tmp_path).unwrap();
+    }
+
+    #[test]
+    fn test_save() {
+        let tmp_path = "./tests/image/cp_image_test_save.png";
+
+        let original = Image::open("./tests/image/00.png").unwrap();
+        std::fs::copy("./tests/image/00.png", tmp_path).unwrap();
+
+        // saving without edit will not change file.
+        let copy = Image::open(tmp_path).unwrap();
+        copy.save().unwrap();
+
+        let mut copy = Image::open(tmp_path).unwrap();
+        assert_eq!(original.width, copy.width);
+        assert_eq!(original.height, copy.height);
+        assert_eq!(original.data, copy.data);
+
+        // save after edit test.
+        let coord = (copy.width as usize - 1, copy.height as usize - 1);
+        let color = Rgb(128, 128, 128);
+        copy.paint(color, &coord);
+        copy.save().unwrap();
+
+        let correct = Image::open("./tests/image/01.png").unwrap();
+        let copy = Image::open(tmp_path).unwrap();
+
+        assert_eq!(correct.width, copy.width);
+        assert_eq!(correct.height, copy.height);
+        assert_eq!(correct.data, copy.data);
+
+        // remove new img.
+        std::fs::remove_file(tmp_path).unwrap();
     }
 }

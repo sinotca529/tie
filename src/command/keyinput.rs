@@ -23,6 +23,7 @@ pub struct KeyInput {
 }
 
 impl KeyInput {
+    /// Construct new KeyInput with default key config.
     pub fn new() -> Self {
         Self {
             cmd_line_content: String::new(),
@@ -33,7 +34,7 @@ impl KeyInput {
 
 impl KeyInput {
     /// convert self.cmd_line_content to Command.
-    fn parse_cmd(&self) -> Command {
+    fn parse_cmd_line(&self) -> Command {
         self.try_parse_quit()
             .or_else(|| self.try_parse_save())
             .or_else(|| self.try_parse_save_as())
@@ -49,7 +50,7 @@ impl KeyInput {
         RE.captures(&self.cmd_line_content).and_then(|cap| {
             let ch = cap[1].chars().next().unwrap();
 
-            let id = self.key_config.char2palette_id(ch);
+            let id = self.key_config.char2palette_cell_id(ch);
             let r = cap[2].parse().ok();
             let g = cap[3].parse().ok();
             let b = cap[4].parse().ok();
@@ -76,15 +77,19 @@ impl KeyInput {
         })
     }
 
+    /// try parse command as Quit command.
     fn try_parse_quit(&self) -> Option<Command> {
         static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^: *q *$").unwrap());
         RE.captures(&self.cmd_line_content).map(|_| Command::Quit)
     }
 
-    fn update_text_cmd(&mut self, keycode: &KeyCode) -> Command {
+    /// Update `cmd_line_content` by `keycode`.
+    /// If the command is ready (when `KeyCode::Enter` is passed), this function returns a corresponding command.
+    /// Otherwise this function returns `Command::Nop`.
+    fn update_cmd_line_content(&mut self, keycode: &KeyCode) -> Command {
         match keycode {
             KeyCode::Enter => {
-                let cmd = self.parse_cmd();
+                let cmd = self.parse_cmd_line();
                 self.cmd_line_content.clear();
                 cmd
             }
@@ -105,11 +110,7 @@ impl Widget for KeyInput {
     fn render(&self, f: &mut tui::Frame<impl tui::backend::Backend>, rect: tui::layout::Rect) {
         if self.cmd_line_content.is_empty() {
             let cmd_line = Block::default().borders(Borders::ALL);
-            let msg = format!(
-                "Begin input command by '{}'",
-                self.key_config.cmd_line_prefix()
-            );
-            let msg = Paragraph::new(Text::raw(msg))
+            let msg = Paragraph::new(Text::raw("Begin input command by ':'"))
                 .block(cmd_line)
                 .style(
                     Style::default()
@@ -143,10 +144,9 @@ impl CommandStream for KeyInput {
     fn read(&mut self) -> Result<Command, Self::Error> {
         event::read().map(|op| {
             if self.cmd_line_content.is_empty() {
-                let cmd_prefix = self.key_config.cmd_line_prefix();
                 match op {
-                    event::Event::Key(key) if key.code == KeyCode::Char(cmd_prefix) => {
-                        self.cmd_line_content.push(cmd_prefix);
+                    event::Event::Key(key) if key.code == KeyCode::Char(':') => {
+                        self.cmd_line_content.push(':');
                         Command::Nop
                     }
                     event::Event::Key(key) => self
@@ -158,7 +158,7 @@ impl CommandStream for KeyInput {
                 }
             } else {
                 match op {
-                    event::Event::Key(key) => self.update_text_cmd(&key.code),
+                    event::Event::Key(key) => self.update_cmd_line_content(&key.code),
                     _ => Command::Nop,
                 }
             }
@@ -168,7 +168,7 @@ impl CommandStream for KeyInput {
 
 #[cfg(test)]
 mod tests {
-    use crate::widget::palette::PaletteID;
+    use crate::widget::palette::PaletteCellID;
 
     use super::*;
 
@@ -189,72 +189,78 @@ mod tests {
     #[test]
     fn test_parse_cmd() {
         let ki = new_key_input("");
-        assert_eq!(ki.parse_cmd(), Command::Nop);
+        assert_eq!(ki.parse_cmd_line(), Command::Nop);
 
         let ki = new_key_input(":");
-        assert_eq!(ki.parse_cmd(), Command::Nop);
+        assert_eq!(ki.parse_cmd_line(), Command::Nop);
 
         let ki = new_key_input(":set w 255 255 128");
         assert_eq!(
-            ki.parse_cmd(),
-            Command::SetPalette(PaletteID::ID0, Rgb(255, 255, 128))
+            ki.parse_cmd_line(),
+            Command::SetPalette(PaletteCellID::ID0, Rgb(255, 255, 128))
         );
 
         let ki = new_key_input(":  set  w 255   255  128  ");
         assert_eq!(
-            ki.parse_cmd(),
-            Command::SetPalette(PaletteID::ID0, Rgb(255, 255, 128))
+            ki.parse_cmd_line(),
+            Command::SetPalette(PaletteCellID::ID0, Rgb(255, 255, 128))
         );
 
         let ki = new_key_input(":  set  w 255   255  128  ;");
-        assert_eq!(ki.parse_cmd(), Command::Nop);
+        assert_eq!(ki.parse_cmd_line(), Command::Nop);
 
         let ki = new_key_input(":set w 999 255  128");
-        assert_eq!(ki.parse_cmd(), Command::Nop);
+        assert_eq!(ki.parse_cmd_line(), Command::Nop);
 
         let ki = new_key_input(":set W 275 255 128");
-        assert_eq!(ki.parse_cmd(), Command::Nop);
+        assert_eq!(ki.parse_cmd_line(), Command::Nop);
     }
 
     #[test]
     fn test_process_text_command() {
         // add a char
         let mut ki = new_key_input(":");
-        assert_eq!(ki.update_text_cmd(&KeyCode::Char('s')), Command::Nop);
+        assert_eq!(
+            ki.update_cmd_line_content(&KeyCode::Char('s')),
+            Command::Nop
+        );
         assert_eq!(ki.cmd_line_content, String::from(":s"));
 
         // backspace
-        assert_eq!(ki.update_text_cmd(&KeyCode::Backspace), Command::Nop);
+        assert_eq!(
+            ki.update_cmd_line_content(&KeyCode::Backspace),
+            Command::Nop
+        );
         assert_eq!(ki.cmd_line_content, String::from(":"));
 
         // ignored key
-        assert_eq!(ki.update_text_cmd(&KeyCode::Tab), Command::Nop);
+        assert_eq!(ki.update_cmd_line_content(&KeyCode::Tab), Command::Nop);
         assert_eq!(ki.cmd_line_content, String::from(":"));
 
         // set palette
         let mut ki = new_key_input(":set w 255 255 128");
         assert_eq!(
-            ki.update_text_cmd(&KeyCode::Enter),
-            Command::SetPalette(PaletteID::ID0, Rgb(255, 255, 128))
+            ki.update_cmd_line_content(&KeyCode::Enter),
+            Command::SetPalette(PaletteCellID::ID0, Rgb(255, 255, 128))
         );
         assert_eq!(ki.cmd_line_content, String::new());
 
         // save
         let mut ki = new_key_input(":w");
-        assert_eq!(ki.update_text_cmd(&KeyCode::Enter), Command::Save);
+        assert_eq!(ki.update_cmd_line_content(&KeyCode::Enter), Command::Save);
         assert_eq!(ki.cmd_line_content, String::new());
 
         // save as
         let mut ki = new_key_input(":w path");
         assert_eq!(
-            ki.update_text_cmd(&KeyCode::Enter),
+            ki.update_cmd_line_content(&KeyCode::Enter),
             Command::SaveAs(PathBuf::from("path"))
         );
         assert_eq!(ki.cmd_line_content, String::new());
 
         // quit
         let mut ki = new_key_input(":q");
-        assert_eq!(ki.update_text_cmd(&KeyCode::Enter), Command::Quit);
+        assert_eq!(ki.update_cmd_line_content(&KeyCode::Enter), Command::Quit);
         assert_eq!(ki.cmd_line_content, String::new());
     }
 }

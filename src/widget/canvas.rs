@@ -31,6 +31,7 @@ impl Canvas {
         }
     }
 
+    /// Move the cursor's coordinate to specified direction.
     pub fn move_cursor(&mut self, dir: crate::command::Direction) {
         match dir {
             crate::command::Direction::Up => {
@@ -56,16 +57,19 @@ impl Canvas {
         }
     }
 
+    /// Save the image as a file specified by the path.
     pub fn save_as(&mut self, path: impl AsRef<Path>) -> Result<(), CanvasError> {
         self.image.save_as(path).map_err(CanvasError::ImageError)
     }
 
+    /// Save the image.
     pub fn save(&self) -> Result<(), CanvasError> {
         self.image.save().map_err(CanvasError::ImageError)
     }
 
-    pub fn edit(&mut self, color: Rgb) {
-        self.image.edit(color, &self.cursor_coord);
+    /// Paint a pixel corresponding to the cursor's coordinate with the specified color.
+    pub fn paint(&mut self, color: Rgb) {
+        self.image.paint(color, &self.cursor_coord);
     }
 }
 
@@ -147,5 +151,30 @@ mod tests {
             canvas.move_cursor(Direction::Down);
         }
         assert_eq!(canvas.cursor_coord, (0, h - 1));
+    }
+
+    #[test]
+    fn test_save_as_witout_err() {
+        let tmp_path = "./tests/image/canvas_test_save_as_without_err.png";
+
+        let img = Image::open("tests/image/00.png").unwrap();
+
+        let mut canvas = Canvas::new(img);
+        canvas.save_as(tmp_path).unwrap();
+
+        std::fs::remove_file(tmp_path).unwrap();
+    }
+
+    #[test]
+    fn test_save_without_err() {
+        let tmp_path = "./tests/image/cp_canvas_test_save_without_err.png";
+
+        std::fs::copy("./tests/image/00.png", tmp_path).unwrap();
+        let img = Image::open(tmp_path).unwrap();
+
+        let canvas = Canvas::new(img);
+        canvas.save().unwrap();
+
+        std::fs::remove_file(tmp_path).unwrap();
     }
 }
