@@ -9,7 +9,7 @@ use regex::Regex;
 use tui::{
     layout::Alignment,
     style::{Color, Style},
-    text::Text,
+    text::{Span, Spans, Text},
     widgets::{Block, Borders, Paragraph, Wrap},
 };
 
@@ -122,7 +122,11 @@ impl Widget for KeyInput {
             f.render_widget(msg, rect);
         } else {
             let cmd_line = Block::default().borders(Borders::ALL);
-            let msg = Paragraph::new(Text::raw(&self.cmd_line_content))
+            let text = vec![Spans::from(vec![
+                Span::raw(&self.cmd_line_content),
+                Span::styled("|", Style::default().fg(Color::Rgb(192, 192, 192))),
+            ])];
+            let msg = Paragraph::new(text)
                 .block(cmd_line)
                 .style(Style::default().fg(Color::White).bg(Color::Black))
                 .alignment(Alignment::Left)
