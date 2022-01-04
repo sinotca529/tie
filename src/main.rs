@@ -9,8 +9,14 @@ mod image;
 mod widget;
 
 fn main() {
-    // let text: Text = Image::read_from_file("./tests/image/00.png").unwrap().into();
-    // dbg!(&text);
-    let img = Image::read_from_file("tests/image/00.png").unwrap();
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() < 2 {
+        println!("Please send a png file's path");
+        return;
+    }
+
+    let img_path = &args[1];
+
+    let img = Image::open(img_path).unwrap();
     App::new(img, KeyInput::new()).run().unwrap();
 }

@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use self::keyconfig::KeyConfig;
 use super::{Command, CommandStream};
 use crate::{image::Rgb, widget::Widget};
@@ -32,24 +34,48 @@ impl KeyInput {
 impl KeyInput {
     /// convert self.cmd_line_content to Command.
     fn parse_cmd(&self) -> Command {
-        static RE_SET_COLOR: Lazy<Regex> =
-            Lazy::new(|| Regex::new(r"^: *set +(\w) +(\d+) +(\d+) +(\d+) *$").unwrap());
-
-        if let Some(cap) = RE_SET_COLOR.captures(&self.cmd_line_content) {
-            let ch = cap[1].chars().next().unwrap();
-            let id = self.key_config.char2palette_id(ch);
-
-            if let (Some(id), Ok(r), Ok(g), Ok(b)) =
-                (id, cap[2].parse(), cap[3].parse(), cap[4].parse())
-            {
-                let rgb = Rgb(r, g, b);
-                return Command::SetPalette(id, rgb);
-            }
-        }
-        Command::Nop
+        self.try_parse_set_palette()
+            .or_else(|| self.try_parse_save())
+            .or_else(|| self.try_parse_save_as())
+            .unwrap_or(Command::Nop)
     }
 
-    fn process_text_command(&mut self, keycode: &KeyCode) -> Command {
+    /// try parse command as SetPalette command.
+    fn try_parse_set_palette(&self) -> Option<Command> {
+        static RE: Lazy<Regex> =
+            Lazy::new(|| Regex::new(r"^: *set +(\w) +(\d+) +(\d+) +(\d+) *$").unwrap());
+
+        RE.captures(&self.cmd_line_content).and_then(|cap| {
+            let ch = cap[1].chars().next().unwrap();
+
+            let id = self.key_config.char2palette_id(ch);
+            let r = cap[2].parse().ok();
+            let g = cap[3].parse().ok();
+            let b = cap[4].parse().ok();
+
+            id.zip(r).zip(g).zip(b).map(|(((id, r), g), b)| {
+                let rgb = Rgb(r, g, b);
+                Command::SetPalette(id, rgb)
+            })
+        })
+    }
+
+    /// try parse command as Save command.
+    fn try_parse_save(&self) -> Option<Command> {
+        static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^: *w *$").unwrap());
+        RE.captures(&self.cmd_line_content).map(|_| Command::Save)
+    }
+
+    /// try parse command as SaveAs command.
+    fn try_parse_save_as(&self) -> Option<Command> {
+        static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^: *w +(\S+) *$").unwrap());
+        RE.captures(&self.cmd_line_content).map(|cap| {
+            let path = PathBuf::from(&cap[1]);
+            Command::SaveAs(path)
+        })
+    }
+
+    fn update_text_cmd(&mut self, keycode: &KeyCode) -> Command {
         match keycode {
             KeyCode::Enter => {
                 let cmd = self.parse_cmd();
@@ -116,13 +142,13 @@ impl CommandStream for KeyInput {
                     event::Event::Key(key) => self
                         .key_config
                         .get(&key.code)
-                        .copied()
+                        .cloned()
                         .unwrap_or(Command::Nop),
                     _ => Command::Nop,
                 }
             } else {
                 match op {
-                    event::Event::Key(key) => self.process_text_command(&key.code),
+                    event::Event::Key(key) => self.update_text_cmd(&key.code),
                     _ => Command::Nop,
                 }
             }
@@ -182,20 +208,37 @@ mod tests {
 
     #[test]
     fn test_process_text_command() {
+        // add a char
         let mut ki = new_key_input(":");
-        assert_eq!(ki.process_text_command(&KeyCode::Char('s')), Command::Nop);
+        assert_eq!(ki.update_text_cmd(&KeyCode::Char('s')), Command::Nop);
         assert_eq!(ki.cmd_line_content, String::from(":s"));
 
-        assert_eq!(ki.process_text_command(&KeyCode::Backspace), Command::Nop);
+        // backspace
+        assert_eq!(ki.update_text_cmd(&KeyCode::Backspace), Command::Nop);
         assert_eq!(ki.cmd_line_content, String::from(":"));
 
-        assert_eq!(ki.process_text_command(&KeyCode::Tab), Command::Nop);
+        // ignored key
+        assert_eq!(ki.update_text_cmd(&KeyCode::Tab), Command::Nop);
         assert_eq!(ki.cmd_line_content, String::from(":"));
 
+        // set palette
         let mut ki = new_key_input(":set w 255 255 128");
         assert_eq!(
-            ki.process_text_command(&KeyCode::Enter),
+            ki.update_text_cmd(&KeyCode::Enter),
             Command::SetPalette(PaletteID::ID0, Rgb(255, 255, 128))
+        );
+        assert_eq!(ki.cmd_line_content, String::new());
+
+        // save
+        let mut ki = new_key_input(":w");
+        assert_eq!(ki.update_text_cmd(&KeyCode::Enter), Command::Save);
+        assert_eq!(ki.cmd_line_content, String::new());
+
+        // save as
+        let mut ki = new_key_input(":w path");
+        assert_eq!(
+            ki.update_text_cmd(&KeyCode::Enter),
+            Command::SaveAs(PathBuf::from("path"))
         );
         assert_eq!(ki.cmd_line_content, String::new());
     }

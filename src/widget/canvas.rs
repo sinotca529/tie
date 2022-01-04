@@ -1,3 +1,6 @@
+use std::path::Path;
+
+use thiserror::Error;
 use tui::{
     layout::Alignment,
     style::{Color, Style},
@@ -7,6 +10,12 @@ use tui::{
 use crate::image::{Image, Rgb};
 
 use super::Widget;
+
+#[derive(Error, Debug)]
+pub enum CanvasError {
+    #[error("Error occurred while processing image.")]
+    ImageError(#[source] crate::image::ImageError),
+}
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Canvas {
@@ -47,6 +56,14 @@ impl Canvas {
         }
     }
 
+    pub fn save_as(&mut self, path: impl AsRef<Path>) -> Result<(), CanvasError> {
+        self.image.save_as(path).map_err(CanvasError::ImageError)
+    }
+
+    pub fn save(&self) -> Result<(), CanvasError> {
+        self.image.save().map_err(CanvasError::ImageError)
+    }
+
     pub fn edit(&mut self, color: Rgb) {
         self.image.edit(color, &self.cursor_coord);
     }
@@ -72,7 +89,7 @@ mod tests {
 
     #[test]
     fn test_move_cursor() {
-        let img = Image::read_from_file("tests/image/00.png").unwrap();
+        let img = Image::open("tests/image/00.png").unwrap();
         let (w, h) = (img.width() as usize, img.height() as usize);
         let mut canvas = Canvas::new(img);
 
@@ -88,7 +105,7 @@ mod tests {
 
     #[test]
     fn boundary_test_move_cursor_left() {
-        let img = Image::read_from_file("tests/image/00.png").unwrap();
+        let img = Image::open("tests/image/00.png").unwrap();
         let mut canvas = Canvas::new(img);
 
         assert_eq!(canvas.cursor_coord, (0, 0));
@@ -98,7 +115,7 @@ mod tests {
 
     #[test]
     fn boundary_test_move_cursor_right() {
-        let img = Image::read_from_file("tests/image/00.png").unwrap();
+        let img = Image::open("tests/image/00.png").unwrap();
         let w = img.width() as usize;
         let mut canvas = Canvas::new(img);
 
@@ -111,7 +128,7 @@ mod tests {
 
     #[test]
     fn boundary_test_move_cursor_up() {
-        let img = Image::read_from_file("tests/image/00.png").unwrap();
+        let img = Image::open("tests/image/00.png").unwrap();
         let mut canvas = Canvas::new(img);
 
         assert_eq!(canvas.cursor_coord, (0, 0));
@@ -121,7 +138,7 @@ mod tests {
 
     #[test]
     fn boundary_test_move_cursor_down() {
-        let img = Image::read_from_file("tests/image/00.png").unwrap();
+        let img = Image::open("tests/image/00.png").unwrap();
         let h = img.height() as usize;
         let mut canvas = Canvas::new(img);
 

@@ -13,7 +13,11 @@ use tui::{
 use crate::{
     command::{Command, CommandStream},
     image::Image,
-    widget::{canvas::Canvas, palette::Palette, Widget},
+    widget::{
+        canvas::{Canvas, CanvasError},
+        palette::Palette,
+        Widget,
+    },
 };
 
 #[derive(Error, Debug)]
@@ -22,10 +26,12 @@ pub enum AppError<E: 'static + std::error::Error + std::fmt::Debug> {
     InitTerm(#[source] std::io::Error),
     #[error("IO error in terminal finalization.")]
     FinTerm(#[source] std::io::Error),
-    #[error("IO error in drawing process.")]
-    Draw(#[source] std::io::Error),
+    #[error("IO error in rendering process.")]
+    Render(#[source] std::io::Error),
     #[error("Error in read command.")]
     ReadCommand(#[source] E),
+    #[error("Error in canvas.")]
+    CanvasError(#[source] CanvasError),
 }
 
 pub struct App<T: CommandStream> {
@@ -95,7 +101,9 @@ where
         terminal: &mut Terminal<impl Backend>,
     ) -> Result<(), AppError<CS::Error>> {
         loop {
-            terminal.draw(|f| self.render(f)).map_err(AppError::Draw)?;
+            terminal
+                .draw(|f| self.render(f))
+                .map_err(AppError::Render)?;
 
             match self.cmd_stream.read().map_err(AppError::ReadCommand)? {
                 Command::Quit => break,
@@ -107,6 +115,10 @@ where
                 }
                 Command::SetPalette(palette_id, rgb) => {
                     *(self.palette.color_mut(palette_id)) = rgb;
+                }
+                Command::Save => self.canvas.save().map_err(AppError::CanvasError)?,
+                Command::SaveAs(path) => {
+                    self.canvas.save_as(path).map_err(AppError::CanvasError)?
                 }
             }
         }
@@ -123,7 +135,7 @@ mod tests {
     use super::*;
     #[test]
     fn test_app_run_without_error() {
-        let img = Image::read_from_file("tests/image/00.png").unwrap();
+        let img = Image::open("tests/image/00.png").unwrap();
         let cs = ProgrammedEvent::new(vec![
             Command::Nop,
             Command::Direction(Direction::Up),
