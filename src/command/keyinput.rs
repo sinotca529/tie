@@ -34,9 +34,10 @@ impl KeyInput {
 impl KeyInput {
     /// convert self.cmd_line_content to Command.
     fn parse_cmd(&self) -> Command {
-        self.try_parse_set_palette()
+        self.try_parse_quit()
             .or_else(|| self.try_parse_save())
             .or_else(|| self.try_parse_save_as())
+            .or_else(|| self.try_parse_set_palette())
             .unwrap_or(Command::Nop)
     }
 
@@ -73,6 +74,11 @@ impl KeyInput {
             let path = PathBuf::from(&cap[1]);
             Command::SaveAs(path)
         })
+    }
+
+    fn try_parse_quit(&self) -> Option<Command> {
+        static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^: *q *$").unwrap());
+        RE.captures(&self.cmd_line_content).map(|_| Command::Quit)
     }
 
     fn update_text_cmd(&mut self, keycode: &KeyCode) -> Command {
@@ -240,6 +246,11 @@ mod tests {
             ki.update_text_cmd(&KeyCode::Enter),
             Command::SaveAs(PathBuf::from("path"))
         );
+        assert_eq!(ki.cmd_line_content, String::new());
+
+        // quit
+        let mut ki = new_key_input(":q");
+        assert_eq!(ki.update_text_cmd(&KeyCode::Enter), Command::Quit);
         assert_eq!(ki.cmd_line_content, String::new());
     }
 }

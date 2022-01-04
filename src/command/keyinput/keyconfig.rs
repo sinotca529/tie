@@ -40,7 +40,6 @@ impl Default for KeyConfig {
     fn default() -> Self {
         Self {
             config: [
-                (KeyCode::Char('q'), Command::Quit),
                 (KeyCode::Char('h'), Command::Direction(Direction::Left)),
                 (KeyCode::Char('j'), Command::Direction(Direction::Down)),
                 (KeyCode::Char('k'), Command::Direction(Direction::Up)),
