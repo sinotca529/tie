@@ -33,7 +33,7 @@ impl KeyInput {
 }
 
 impl KeyInput {
-    /// convert self.cmd_line_content to Command.
+    /// Convert self.cmd_line_content to Command.
     fn parse_cmd_line(&self) -> Command {
         self.try_parse_quit()
             .or_else(|| self.try_parse_save())
@@ -42,7 +42,7 @@ impl KeyInput {
             .unwrap_or(Command::Nop)
     }
 
-    /// try parse command as SetPalette command.
+    /// Try parse command as SetPalette command.
     fn try_parse_set_palette(&self) -> Option<Command> {
         static RE: Lazy<Regex> =
             Lazy::new(|| Regex::new(r"^: *set +(\w) +(\d+) +(\d+) +(\d+) *$").unwrap());
@@ -62,13 +62,13 @@ impl KeyInput {
         })
     }
 
-    /// try parse command as Save command.
+    /// Try parse command as Save command.
     fn try_parse_save(&self) -> Option<Command> {
         static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^: *w *$").unwrap());
         RE.captures(&self.cmd_line_content).map(|_| Command::Save)
     }
 
-    /// try parse command as SaveAs command.
+    /// Try parse command as SaveAs command.
     fn try_parse_save_as(&self) -> Option<Command> {
         static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^: *w +(\S+) *$").unwrap());
         RE.captures(&self.cmd_line_content).map(|cap| {
@@ -77,7 +77,7 @@ impl KeyInput {
         })
     }
 
-    /// try parse command as Quit command.
+    /// Try parse command as Quit command.
     fn try_parse_quit(&self) -> Option<Command> {
         static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^: *q *$").unwrap());
         RE.captures(&self.cmd_line_content).map(|_| Command::Quit)
@@ -168,7 +168,7 @@ impl CommandStream for KeyInput {
 
 #[cfg(test)]
 mod tests {
-    use crate::widget::palette::PaletteCellID;
+    use crate::widget::palette::PaletteCellId;
 
     use super::*;
 
@@ -197,13 +197,13 @@ mod tests {
         let ki = new_key_input(":set w 255 255 128");
         assert_eq!(
             ki.parse_cmd_line(),
-            Command::SetPalette(PaletteCellID::ID0, Rgb(255, 255, 128))
+            Command::SetPalette(PaletteCellId::Id0, Rgb(255, 255, 128))
         );
 
         let ki = new_key_input(":  set  w 255   255  128  ");
         assert_eq!(
             ki.parse_cmd_line(),
-            Command::SetPalette(PaletteCellID::ID0, Rgb(255, 255, 128))
+            Command::SetPalette(PaletteCellId::Id0, Rgb(255, 255, 128))
         );
 
         let ki = new_key_input(":  set  w 255   255  128  ;");
@@ -241,7 +241,7 @@ mod tests {
         let mut ki = new_key_input(":set w 255 255 128");
         assert_eq!(
             ki.update_cmd_line_content(&KeyCode::Enter),
-            Command::SetPalette(PaletteCellID::ID0, Rgb(255, 255, 128))
+            Command::SetPalette(PaletteCellId::Id0, Rgb(255, 255, 128))
         );
         assert_eq!(ki.cmd_line_content, String::new());
 

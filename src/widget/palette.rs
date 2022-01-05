@@ -12,13 +12,13 @@ use crate::image::Rgb;
 use super::Widget;
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub enum PaletteCellID {
-    ID0 = 0,
-    ID1 = 1,
-    ID2 = 2,
-    ID3 = 3,
-    ID4 = 4,
-    ID5 = 5,
+pub enum PaletteCellId {
+    Id0 = 0,
+    Id1 = 1,
+    Id2 = 2,
+    Id3 = 3,
+    Id4 = 4,
+    Id5 = 5,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -30,13 +30,13 @@ impl Palette {
     pub const NUM_CELL: usize = 6;
 
     /// Return a reference to color of palette.
-    pub fn color(&self, id: PaletteCellID) -> &Rgb {
+    pub fn color(&self, id: PaletteCellId) -> &Rgb {
         &self.cells[id as usize]
     }
 
-    /// Return a mutable reference to color of palette.
-    pub fn color_mut(&mut self, id: PaletteCellID) -> &mut Rgb {
-        &mut self.cells[id as usize]
+    /// Set color of palette's specified cell.
+    pub fn set_color(&mut self, id: PaletteCellId, color: Rgb) {
+        self.cells[id as usize] = color;
     }
 }
 
@@ -105,8 +105,8 @@ mod tests {
     #[test]
     fn test_color() {
         let p = Palette::default();
-        assert_eq!(p.color(PaletteCellID::ID0), &Rgb(0, 0, 0));
-        assert_eq!(p.color(PaletteCellID::ID3), &Rgb(255, 0, 0));
+        assert_eq!(p.color(PaletteCellId::Id0), &Rgb(0, 0, 0));
+        assert_eq!(p.color(PaletteCellId::Id3), &Rgb(255, 0, 0));
     }
 
     #[test]
@@ -114,11 +114,11 @@ mod tests {
         let mut p = Palette::default();
         let cp = p.clone();
 
-        assert_eq!(p.color(PaletteCellID::ID0), &Rgb(0, 0, 0));
-        *p.color_mut(PaletteCellID::ID0) = Rgb(3, 4, 5);
-        assert_eq!(p.color(PaletteCellID::ID0), &Rgb(3, 4, 5));
+        assert_eq!(p.color(PaletteCellId::Id0), &Rgb(0, 0, 0));
+        p.set_color(PaletteCellId::Id0, Rgb(3, 4, 5));
+        assert_eq!(p.color(PaletteCellId::Id0), &Rgb(3, 4, 5));
 
-        *p.color_mut(PaletteCellID::ID0) = Rgb(0, 0, 0);
+        p.set_color(PaletteCellId::Id0, Rgb(0, 0, 0));
         assert_eq!(p, cp);
     }
 }

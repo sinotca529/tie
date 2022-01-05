@@ -1,6 +1,6 @@
 use crate::{
     command::{Command, Direction},
-    widget::palette::{Palette, PaletteCellID},
+    widget::palette::{Palette, PaletteCellId},
 };
 use crossterm::event::KeyCode;
 use std::collections::HashMap;
@@ -12,13 +12,13 @@ pub struct KeyConfig {
 }
 
 impl KeyConfig {
-    fn palette_cell_id2char(&self, id: PaletteCellID) -> char {
+    fn palette_cell_id2char(&self, id: PaletteCellId) -> char {
         self.palette_id2char[id as usize]
     }
 
-    pub fn char2palette_cell_id(&self, ch: char) -> Option<PaletteCellID> {
-        use PaletteCellID::*;
-        for id in [ID0, ID1, ID2, ID3, ID4, ID5] {
+    pub fn char2palette_cell_id(&self, ch: char) -> Option<PaletteCellId> {
+        use PaletteCellId::*;
+        for id in [Id0, Id1, Id2, Id3, Id4, Id5] {
             if self.palette_cell_id2char(id) == ch {
                 return Some(id);
             }
@@ -39,12 +39,12 @@ impl Default for KeyConfig {
                 (KeyCode::Char('j'), Command::Direction(Direction::Down)),
                 (KeyCode::Char('k'), Command::Direction(Direction::Up)),
                 (KeyCode::Char('l'), Command::Direction(Direction::Right)),
-                (KeyCode::Char('w'), Command::Palette(PaletteCellID::ID0)),
-                (KeyCode::Char('e'), Command::Palette(PaletteCellID::ID1)),
-                (KeyCode::Char('r'), Command::Palette(PaletteCellID::ID2)),
-                (KeyCode::Char('s'), Command::Palette(PaletteCellID::ID3)),
-                (KeyCode::Char('d'), Command::Palette(PaletteCellID::ID4)),
-                (KeyCode::Char('f'), Command::Palette(PaletteCellID::ID5)),
+                (KeyCode::Char('w'), Command::Palette(PaletteCellId::Id0)),
+                (KeyCode::Char('e'), Command::Palette(PaletteCellId::Id1)),
+                (KeyCode::Char('r'), Command::Palette(PaletteCellId::Id2)),
+                (KeyCode::Char('s'), Command::Palette(PaletteCellId::Id3)),
+                (KeyCode::Char('d'), Command::Palette(PaletteCellId::Id4)),
+                (KeyCode::Char('f'), Command::Palette(PaletteCellId::Id5)),
             ]
             .into_iter()
             .collect(),
@@ -59,15 +59,15 @@ mod tests {
     #[test]
     fn test_palette_id2char() {
         let kc = KeyConfig::default();
-        assert_eq!(kc.palette_cell_id2char(PaletteCellID::ID0), 'w');
-        assert_eq!(kc.palette_cell_id2char(PaletteCellID::ID1), 'e');
+        assert_eq!(kc.palette_cell_id2char(PaletteCellId::Id0), 'w');
+        assert_eq!(kc.palette_cell_id2char(PaletteCellId::Id1), 'e');
     }
 
     #[test]
     fn test_char2palette_id() {
         let kc = KeyConfig::default();
-        assert_eq!(kc.char2palette_cell_id('w'), Some(PaletteCellID::ID0));
-        assert_eq!(kc.char2palette_cell_id('e'), Some(PaletteCellID::ID1));
+        assert_eq!(kc.char2palette_cell_id('w'), Some(PaletteCellId::Id0));
+        assert_eq!(kc.char2palette_cell_id('e'), Some(PaletteCellId::Id1));
         assert_eq!(kc.char2palette_cell_id('W'), None);
     }
 
@@ -80,7 +80,7 @@ mod tests {
         );
         assert_eq!(
             kc.get(&KeyCode::Char('r')),
-            Some(&Command::Palette(PaletteCellID::ID2))
+            Some(&Command::Palette(PaletteCellId::Id2))
         );
         assert_eq!(kc.get(&KeyCode::Char('!')), None);
     }

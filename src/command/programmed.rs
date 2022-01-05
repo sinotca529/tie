@@ -1,4 +1,3 @@
-use thiserror::Error;
 use tui::{
     layout::Alignment,
     style::{Color, Style},
@@ -10,7 +9,7 @@ use crate::widget::Widget;
 
 use super::{Command, CommandStream};
 
-#[derive(Error, Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum DummyError {}
 
 /// This struct is used to test App automatically.

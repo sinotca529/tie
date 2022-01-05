@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use crate::{
     image::Rgb,
-    widget::{palette::PaletteCellID, Widget},
+    widget::{palette::PaletteCellId, Widget},
 };
 
 pub mod keyinput;
@@ -15,8 +15,8 @@ pub enum Command {
     Quit,
     Nop,
     Direction(Direction),
-    Palette(PaletteCellID),
-    SetPalette(PaletteCellID, Rgb),
+    Palette(PaletteCellId),
+    SetPalette(PaletteCellId, Rgb),
     Save,
     SaveAs(PathBuf),
 }
