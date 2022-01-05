@@ -3,7 +3,6 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use std::io;
-use thiserror::Error;
 use tui::{
     backend::{Backend, CrosstermBackend},
     layout::{Constraint, Direction, Layout},
@@ -14,14 +13,14 @@ use crate::{
     command::{Command, CommandStream},
     image::Image,
     widget::{
-        canvas::{Canvas, CanvasError},
+        canvas::{self, Canvas},
         palette::Palette,
         Widget,
     },
 };
 
-#[derive(Error, Debug)]
-pub enum AppError<E: 'static + std::error::Error + std::fmt::Debug> {
+#[derive(thiserror::Error, Debug)]
+pub enum Error<E: 'static + std::error::Error + std::fmt::Debug> {
     #[error("IO error in terminal initialization.")]
     InitTerm(#[source] std::io::Error),
     #[error("IO error in terminal finalization.")]
@@ -31,7 +30,7 @@ pub enum AppError<E: 'static + std::error::Error + std::fmt::Debug> {
     #[error("Error in read command.")]
     ReadCommand(#[source] E),
     #[error("Error in canvas.")]
-    CanvasError(#[source] CanvasError),
+    Canvas(#[source] canvas::Error),
 }
 
 pub struct App<T: CommandStream> {
@@ -77,35 +76,30 @@ where
     CS: CommandStream,
     CS::Error: std::error::Error + std::fmt::Debug,
 {
-    pub fn run(&mut self) -> Result<(), AppError<CS::Error>> {
-        // setup terminal
-        enable_raw_mode().map_err(AppError::InitTerm)?;
+    pub fn run(&mut self) -> Result<(), Error<CS::Error>> {
+        // Setup terminal
+        enable_raw_mode().map_err(Error::InitTerm)?;
         let mut stdout = io::stdout();
-        execute!(stdout, EnterAlternateScreen).map_err(AppError::InitTerm)?;
+        execute!(stdout, EnterAlternateScreen).map_err(Error::InitTerm)?;
         let backend = CrosstermBackend::new(stdout);
-        let mut terminal = Terminal::new(backend).map_err(AppError::InitTerm)?;
+        let mut terminal = Terminal::new(backend).map_err(Error::InitTerm)?;
 
         // create app and run it
         self.main_loop(&mut terminal)?;
 
         // restore terminal
-        disable_raw_mode().map_err(AppError::FinTerm)?;
-        execute!(terminal.backend_mut(), LeaveAlternateScreen,).map_err(AppError::FinTerm)?;
-        terminal.show_cursor().map_err(AppError::FinTerm)?;
+        disable_raw_mode().map_err(Error::FinTerm)?;
+        execute!(terminal.backend_mut(), LeaveAlternateScreen,).map_err(Error::FinTerm)?;
+        terminal.show_cursor().map_err(Error::FinTerm)?;
 
         Ok(())
     }
 
-    fn main_loop(
-        &mut self,
-        terminal: &mut Terminal<impl Backend>,
-    ) -> Result<(), AppError<CS::Error>> {
+    fn main_loop(&mut self, terminal: &mut Terminal<impl Backend>) -> Result<(), Error<CS::Error>> {
         loop {
-            terminal
-                .draw(|f| self.render(f))
-                .map_err(AppError::Render)?;
+            terminal.draw(|f| self.render(f)).map_err(Error::Render)?;
 
-            match self.cmd_stream.read().map_err(AppError::ReadCommand)? {
+            match self.cmd_stream.read().map_err(Error::ReadCommand)? {
                 Command::Quit => break,
                 Command::Nop => {}
                 Command::Direction(dir) => self.canvas.move_cursor(dir),
@@ -114,12 +108,10 @@ where
                     self.canvas.paint(color);
                 }
                 Command::SetPalette(palette_id, rgb) => {
-                    *(self.palette.color_mut(palette_id)) = rgb;
+                    self.palette.set_color(palette_id, rgb);
                 }
-                Command::Save => self.canvas.save().map_err(AppError::CanvasError)?,
-                Command::SaveAs(path) => {
-                    self.canvas.save_as(path).map_err(AppError::CanvasError)?
-                }
+                Command::Save => self.canvas.save().map_err(Error::Canvas)?,
+                Command::SaveAs(path) => self.canvas.save_as(path).map_err(Error::Canvas)?,
             }
         }
         Ok(())
@@ -131,7 +123,7 @@ mod tests {
     use crate::command::programmed::ProgrammedEvent;
     use crate::command::Direction;
     use crate::image::Rgb;
-    use crate::widget::palette::PaletteCellID;
+    use crate::widget::palette::PaletteCellId;
 
     use super::*;
     #[test]
@@ -147,13 +139,13 @@ mod tests {
             Command::Direction(Direction::Down),
             Command::Direction(Direction::Left),
             Command::Direction(Direction::Right),
-            Command::Palette(PaletteCellID::ID0),
-            Command::Palette(PaletteCellID::ID1),
-            Command::Palette(PaletteCellID::ID2),
-            Command::Palette(PaletteCellID::ID3),
-            Command::Palette(PaletteCellID::ID4),
-            Command::Palette(PaletteCellID::ID5),
-            Command::SetPalette(PaletteCellID::ID0, Rgb(0, 0, 0)),
+            Command::Palette(PaletteCellId::Id0),
+            Command::Palette(PaletteCellId::Id1),
+            Command::Palette(PaletteCellId::Id2),
+            Command::Palette(PaletteCellId::Id3),
+            Command::Palette(PaletteCellId::Id4),
+            Command::Palette(PaletteCellId::Id5),
+            Command::SetPalette(PaletteCellId::Id0, Rgb(0, 0, 0)),
             Command::Save,
             Command::SaveAs(tmp_path2.into()),
             Command::Quit,

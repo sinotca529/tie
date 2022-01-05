@@ -1,6 +1,5 @@
 use std::path::Path;
 
-use thiserror::Error;
 use tui::{
     layout::Alignment,
     style::{Color, Style},
@@ -11,10 +10,10 @@ use crate::image::{Image, Rgb};
 
 use super::Widget;
 
-#[derive(Error, Debug)]
-pub enum CanvasError {
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
     #[error("Error occurred while processing image.")]
-    ImageError(#[source] crate::image::ImageError),
+    Image(#[source] crate::image::Error),
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -58,13 +57,13 @@ impl Canvas {
     }
 
     /// Save the image as a file specified by the path.
-    pub fn save_as(&mut self, path: impl AsRef<Path>) -> Result<(), CanvasError> {
-        self.image.save_as(path).map_err(CanvasError::ImageError)
+    pub fn save_as(&mut self, path: impl AsRef<Path>) -> Result<(), Error> {
+        self.image.save_as(path).map_err(Error::Image)
     }
 
     /// Save the image.
-    pub fn save(&self) -> Result<(), CanvasError> {
-        self.image.save().map_err(CanvasError::ImageError)
+    pub fn save(&self) -> Result<(), Error> {
+        self.image.save().map_err(Error::Image)
     }
 
     /// Paint a pixel corresponding to the cursor's coordinate with the specified color.

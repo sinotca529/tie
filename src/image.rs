@@ -3,7 +3,6 @@ use std::{
     io::BufWriter,
     path::{Path, PathBuf},
 };
-use thiserror::Error;
 use tui::{
     style::{Color, Style},
     text::{Span, Spans, Text},
@@ -35,8 +34,8 @@ pub struct Image {
     data: Text<'static>,
 }
 
-#[derive(Error, Debug)]
-pub enum ImageError {
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
     #[error("IO error.")]
     IO(#[source] std::io::Error),
 
@@ -55,18 +54,18 @@ impl Image {
 
     /// Read image from file.
     /// This function can open PNG whose color type is RGB and color depth is 8-bit.
-    pub fn open(path: impl AsRef<Path>) -> Result<Image, ImageError> {
+    pub fn open(path: impl AsRef<Path>) -> Result<Image, Error> {
         dbg!(path.as_ref());
 
-        let file = File::open(&path).map_err(ImageError::IO)?;
+        let file = File::open(&path).map_err(Error::IO)?;
         let decoder = png::Decoder::new(&file);
-        let mut reader = decoder.read_info().map_err(ImageError::Decode)?;
+        let mut reader = decoder.read_info().map_err(Error::Decode)?;
         let mut buf = vec![0; reader.output_buffer_size()];
         let info = reader.next_frame(&mut buf).unwrap();
 
         if (info.color_type != png::ColorType::Rgb) || (info.bit_depth != png::BitDepth::Eight) {
             dbg!(info.color_type, info.bit_depth);
-            return Err(ImageError::UnsupportedImgType);
+            return Err(Error::UnsupportedImgType);
         }
 
         let (width, height) = (info.width, info.height);
@@ -95,7 +94,7 @@ impl Image {
             .collect::<Vec<Spans<'static>>>()
             .into();
 
-        file.sync_all().map_err(ImageError::IO)?;
+        file.sync_all().map_err(Error::IO)?;
 
         Ok(Image {
             path: path.as_ref().to_path_buf(),
@@ -131,18 +130,18 @@ impl Image {
     }
 
     /// Save the image as a file specified by the path.
-    pub fn save_as(&mut self, path: impl AsRef<Path>) -> Result<(), ImageError> {
-        let file = File::create(&path).map_err(ImageError::IO)?;
+    pub fn save_as(&mut self, path: impl AsRef<Path>) -> Result<(), Error> {
+        let file = File::create(&path).map_err(Error::IO)?;
         let w = &mut BufWriter::new(file);
 
         let mut encoder = png::Encoder::new(w, self.width(), self.height());
         encoder.set_color(png::ColorType::Rgb);
         encoder.set_depth(png::BitDepth::Eight);
 
-        let mut writer = encoder.write_header().map_err(ImageError::Encode)?;
+        let mut writer = encoder.write_header().map_err(Error::Encode)?;
         writer
             .write_image_data(&self.rgb_vec())
-            .map_err(ImageError::Encode)?;
+            .map_err(Error::Encode)?;
 
         self.path = path.as_ref().to_path_buf();
 
@@ -150,18 +149,18 @@ impl Image {
     }
 
     /// Save the image.
-    pub fn save(&self) -> Result<(), ImageError> {
-        let file = File::create(&self.path).map_err(ImageError::IO)?;
+    pub fn save(&self) -> Result<(), Error> {
+        let file = File::create(&self.path).map_err(Error::IO)?;
         let w = &mut BufWriter::new(file);
 
         let mut encoder = png::Encoder::new(w, self.width(), self.height());
         encoder.set_color(png::ColorType::Rgb);
         encoder.set_depth(png::BitDepth::Eight);
 
-        let mut writer = encoder.write_header().map_err(ImageError::Encode)?;
+        let mut writer = encoder.write_header().map_err(Error::Encode)?;
         writer
             .write_image_data(&self.rgb_vec())
-            .map_err(ImageError::Encode)?;
+            .map_err(Error::Encode)?;
 
         Ok(())
     }
@@ -310,20 +309,20 @@ mod tests {
     #[test]
     fn test_read_from_error_io() {
         let img = Image::open("./tests/image/non-exist.png");
-        assert!(matches!(img, Err(ImageError::IO(_))));
+        assert!(matches!(img, Err(Error::IO(_))));
     }
 
     /// This test checks whether `Image::read_from_file` return `ImageError::UnsupportedImgType` error when it passed a path to transparent png file.
     #[test]
     fn test_read_from_error_unsupported() {
         let img = Image::open("./tests/image/transparent.png");
-        assert!(matches!(img, Err(ImageError::UnsupportedImgType)));
+        assert!(matches!(img, Err(Error::UnsupportedImgType)));
     }
     /// This test checks whether `Image::read_from_file` return `ImageError::Decode` error when it passed a path to non-png file.
     #[test]
     fn test_read_from_error_decode() {
         let img = Image::open("./tests/image/not-png.txt");
-        assert!(matches!(img, Err(ImageError::Decode(_))));
+        assert!(matches!(img, Err(Error::Decode(_))));
     }
 
     #[test]
