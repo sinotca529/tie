@@ -1,10 +1,9 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::OnceLock};
 
 use self::keyconfig::KeyConfig;
 use super::{Command, CommandStream};
 use crate::{image::Rgb, widget::Widget};
 use crossterm::event::{self, KeyCode};
-use once_cell::sync::Lazy;
 use regex::Regex;
 use tui::{
     layout::Alignment,
@@ -44,43 +43,49 @@ impl KeyInput {
 
     /// Try parse command as SetPalette command.
     fn try_parse_set_palette(&self) -> Option<Command> {
-        static RE: Lazy<Regex> =
-            Lazy::new(|| Regex::new(r"^: *set +(\w) +(\d+) +(\d+) +(\d+) *$").unwrap());
+        static RE: OnceLock<Regex> = OnceLock::new();
+        RE.get_or_init(|| Regex::new(r"^: *set +(\w) +(\d+) +(\d+) +(\d+) *$").unwrap())
+            .captures(&self.cmd_line_content)
+            .and_then(|cap| {
+                let ch = cap[1].chars().next().unwrap();
 
-        RE.captures(&self.cmd_line_content).and_then(|cap| {
-            let ch = cap[1].chars().next().unwrap();
+                let id = self.key_config.char2palette_cell_id(ch);
+                let r = cap[2].parse().ok();
+                let g = cap[3].parse().ok();
+                let b = cap[4].parse().ok();
 
-            let id = self.key_config.char2palette_cell_id(ch);
-            let r = cap[2].parse().ok();
-            let g = cap[3].parse().ok();
-            let b = cap[4].parse().ok();
-
-            id.zip(r).zip(g).zip(b).map(|(((id, r), g), b)| {
-                let rgb = Rgb(r, g, b);
-                Command::SetPalette(id, rgb)
+                id.zip(r).zip(g).zip(b).map(|(((id, r), g), b)| {
+                    let rgb = Rgb(r, g, b);
+                    Command::SetPalette(id, rgb)
+                })
             })
-        })
     }
 
     /// Try parse command as Save command.
     fn try_parse_save(&self) -> Option<Command> {
-        static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^: *w *$").unwrap());
-        RE.captures(&self.cmd_line_content).map(|_| Command::Save)
+        static RE: OnceLock<Regex> = OnceLock::new();
+        RE.get_or_init(|| Regex::new(r"^: *w *$").unwrap())
+            .captures(&self.cmd_line_content)
+            .map(|_| Command::Save)
     }
 
     /// Try parse command as SaveAs command.
     fn try_parse_save_as(&self) -> Option<Command> {
-        static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^: *w +(\S+) *$").unwrap());
-        RE.captures(&self.cmd_line_content).map(|cap| {
-            let path = PathBuf::from(&cap[1]);
-            Command::SaveAs(path)
-        })
+        static RE: OnceLock<Regex> = OnceLock::new();
+        RE.get_or_init(|| Regex::new(r"^: *w +(\S+) *$").unwrap())
+            .captures(&self.cmd_line_content)
+            .map(|cap| {
+                let path = PathBuf::from(&cap[1]);
+                Command::SaveAs(path)
+            })
     }
 
     /// Try parse command as Quit command.
     fn try_parse_quit(&self) -> Option<Command> {
-        static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^: *q *$").unwrap());
-        RE.captures(&self.cmd_line_content).map(|_| Command::Quit)
+        static RE: OnceLock<Regex> = OnceLock::new();
+        RE.get_or_init(|| Regex::new(r"^: *q *$").unwrap())
+            .captures(&self.cmd_line_content)
+            .map(|_| Command::Quit)
     }
 
     /// Update `cmd_line_content` by `keycode`.

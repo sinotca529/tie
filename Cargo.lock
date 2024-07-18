@@ -219,12 +219,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "once_cell"
-version = "1.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da32515d9f6e6e489d7bc9d84c71b060db7247dc035bbe44eac88cf87486d8d5"
-
-[[package]]
 name = "parking_lot"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -435,7 +429,6 @@ name = "tie"
 version = "0.1.0"
 dependencies = [
  "crossterm 0.27.0",
- "once_cell",
  "png",
  "regex",
  "thiserror",
