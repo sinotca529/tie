@@ -1,5 +1,4 @@
-use tui::{
-    backend::Backend,
+use ratatui::{
     layout::{Alignment, Rect},
     style::{Color, Style},
     text::{Span, Text},
@@ -41,7 +40,7 @@ impl Palette {
 }
 
 impl Widget for Palette {
-    fn render(&self, f: &mut Frame<impl Backend>, rect: Rect) {
+    fn render(&self, f: &mut Frame, rect: Rect) {
         let up = (0..3)
             .map(|i| {
                 let color = self.cells[i].into();

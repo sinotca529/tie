@@ -3,9 +3,9 @@ use std::{
     io::BufWriter,
     path::{Path, PathBuf},
 };
-use tui::{
+use ratatui::{
     style::{Color, Style},
-    text::{Span, Spans, Text},
+    text::{Span, Line, Text},
 };
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -18,7 +18,7 @@ impl Rgb {
     }
 }
 
-impl From<Rgb> for tui::style::Color {
+impl From<Rgb> for ratatui::style::Color {
     fn from(rgb: Rgb) -> Self {
         Self::Rgb(rgb.0, rgb.1, rgb.2)
     }
@@ -89,9 +89,9 @@ impl Image {
                     let span = Span::styled(Self::CURSOR_STR, style);
                     line.push(span);
                 }
-                Into::<Spans<'static>>::into(line)
+                Into::<Line<'static>>::into(line)
             })
-            .collect::<Vec<Spans<'static>>>()
+            .collect::<Vec<Line<'static>>>()
             .into();
 
         file.sync_all().map_err(Error::IO)?;
@@ -177,7 +177,7 @@ impl Image {
     /// The background color of specified coordinate.
     fn bg_color(&self, coord: &(usize, usize)) -> &Color {
         self.assert_coord(coord);
-        match self.data.lines[coord.1].0[coord.0].style.bg {
+        match self.data.lines[coord.1].spans[coord.0].style.bg {
             Some(ref color) => color,
             None => unreachable!(),
         }
@@ -186,7 +186,7 @@ impl Image {
     /// The mutable reference to the background color of specified coordinate.
     fn bg_color_mut(&mut self, coord: &(usize, usize)) -> &mut Color {
         self.assert_coord(coord);
-        match self.data.lines[coord.1].0[coord.0].style.bg {
+        match self.data.lines[coord.1].spans[coord.0].style.bg {
             Some(ref mut color) => color,
             None => unreachable!(),
         }
@@ -195,7 +195,7 @@ impl Image {
     ///  The mutable reference to the foreground color of specified coordinate.
     fn fg_color_mut(&mut self, coord: &(usize, usize)) -> &mut Color {
         self.assert_coord(coord);
-        match self.data.lines[coord.1].0[coord.0].style.fg {
+        match self.data.lines[coord.1].spans[coord.0].style.fg {
             Some(ref mut color) => color,
             None => unreachable!(),
         }
@@ -229,7 +229,7 @@ impl From<Image> for Text<'static> {
 
 #[cfg(test)]
 mod tests {
-    use tui::style::Color;
+    use ratatui::style::Color;
 
     use super::*;
 

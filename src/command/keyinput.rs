@@ -4,13 +4,14 @@ use self::keyconfig::KeyConfig;
 use super::{Command, CommandStream};
 use crate::{image::Rgb, widget::Widget};
 use crossterm::event::{self, KeyCode};
-use regex::Regex;
-use tui::{
+use ratatui::{
     layout::Alignment,
     style::{Color, Style},
-    text::{Span, Spans, Text},
+    text::{Line, Span, Text},
     widgets::{Block, Borders, Paragraph, Wrap},
+    Frame,
 };
+use regex::Regex;
 
 mod keyconfig;
 
@@ -112,7 +113,7 @@ impl KeyInput {
 }
 
 impl Widget for KeyInput {
-    fn render(&self, f: &mut tui::Frame<impl tui::backend::Backend>, rect: tui::layout::Rect) {
+    fn render(&self, f: &mut Frame, rect: ratatui::layout::Rect) {
         if self.cmd_line_content.is_empty() {
             let cmd_line = Block::default().borders(Borders::ALL);
             let msg = Paragraph::new(Text::raw("Begin input command by ':'"))
@@ -128,7 +129,7 @@ impl Widget for KeyInput {
             f.render_widget(msg, rect);
         } else {
             let cmd_line = Block::default().borders(Borders::ALL);
-            let text = vec![Spans::from(vec![
+            let text = vec![Line::from(vec![
                 Span::raw(&self.cmd_line_content),
                 Span::styled("|", Style::default().fg(Color::Rgb(192, 192, 192))),
             ])];

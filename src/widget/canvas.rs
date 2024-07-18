@@ -1,9 +1,9 @@
 use std::path::Path;
 
-use tui::{
+use ratatui::{
     layout::Alignment,
     style::{Color, Style},
-    widgets::{Block, Borders, Paragraph, Wrap},
+    widgets::{Block, Borders, Paragraph, Wrap}, Frame,
 };
 
 use crate::image::{Image, Rgb};
@@ -73,7 +73,7 @@ impl Canvas {
 }
 
 impl Widget for Canvas {
-    fn render(&self, f: &mut tui::Frame<impl tui::backend::Backend>, rect: tui::layout::Rect) {
+    fn render(&self, f: &mut Frame, rect: ratatui::layout::Rect) {
         let canvas = Block::default().title("Canvas").borders(Borders::ALL);
         let img = Paragraph::new(self.image.clone().into_text_with_cursor(&self.cursor_coord))
             .block(canvas)

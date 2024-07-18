@@ -3,7 +3,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use std::io;
-use tui::{
+use ratatui::{
     backend::{Backend, CrosstermBackend},
     layout::{Constraint, Direction, Layout},
     Frame, Terminal,
@@ -48,7 +48,7 @@ impl<CS: CommandStream> App<CS> {
         }
     }
 
-    fn render(&self, f: &mut Frame<impl Backend>) {
+    fn render(&self, f: &mut Frame) {
         let chunks1 = Layout::default()
             .direction(Direction::Vertical)
             .constraints(
