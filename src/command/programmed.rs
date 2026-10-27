@@ -1,4 +1,4 @@
-use tui::{
+use ratatui::{
     layout::Alignment,
     style::{Color, Style},
     text::Text,
@@ -27,7 +27,7 @@ impl ProgrammedEvent {
 }
 
 impl Widget for ProgrammedEvent {
-    fn render(&self, f: &mut tui::Frame<impl tui::backend::Backend>, rect: tui::layout::Rect) {
+    fn render(&self, f: &mut ratatui::Frame, rect: ratatui::layout::Rect) {
         let cmd_line = Block::default().borders(Borders::ALL);
         let img = Paragraph::new(Text::raw("This is a dummy message"))
             .block(cmd_line)

@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::BufWriter,
+    io::{BufReader, BufWriter},
     path::{Path, PathBuf},
 };
 use ratatui::{
@@ -58,9 +58,9 @@ impl Image {
         dbg!(path.as_ref());
 
         let file = File::open(&path).map_err(Error::IO)?;
-        let decoder = png::Decoder::new(&file);
+        let decoder = png::Decoder::new(BufReader::new(&file));
         let mut reader = decoder.read_info().map_err(Error::Decode)?;
-        let mut buf = vec![0; reader.output_buffer_size()];
+        let mut buf = vec![0; reader.output_buffer_size().expect("image too large")];
         let info = reader.next_frame(&mut buf).unwrap();
 
         if (info.color_type != png::ColorType::Rgb) || (info.bit_depth != png::BitDepth::Eight) {
@@ -261,7 +261,7 @@ mod tests {
         for y in 0..height {
             for x in 0..width {
                 let expected_color: Color = expected_colors[y as usize][x as usize].into();
-                let span = &img.data.lines[y as usize].0[x as usize];
+                let span = &img.data.lines[y as usize].spans[x as usize];
                 assert_eq!(span.content.to_string(), Image::CURSOR_STR);
                 assert_eq!(span.style.fg, Some(expected_color));
                 assert_eq!(span.style.bg, Some(expected_color));
@@ -350,7 +350,7 @@ mod tests {
 
         for y in 0..h {
             for x in 0..w {
-                let span = &with_cursor.lines[y].0[x];
+                let span = &with_cursor.lines[y].spans[x];
                 let fg = span.style.fg.unwrap();
                 let bg = span.style.bg.unwrap();
                 if let (Color::Rgb(fr, fg, fb), Color::Rgb(br, bg, bb)) = (fg, bg) {
