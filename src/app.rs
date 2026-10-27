@@ -53,12 +53,12 @@ impl<CS: CommandStream> App<CS> {
             .direction(Direction::Vertical)
             .constraints(
                 [
-                    Constraint::Length(f.size().height - 3),
+                    Constraint::Length(f.area().height - 3),
                     Constraint::Length(3),
                 ]
                 .as_ref(),
             )
-            .split(f.size());
+            .split(f.area());
 
         let chunks2 = Layout::default()
             .direction(Direction::Horizontal)
@@ -95,7 +95,7 @@ where
         Ok(())
     }
 
-    fn main_loop(&mut self, terminal: &mut Terminal<impl Backend>) -> Result<(), Error<CS::Error>> {
+    fn main_loop(&mut self, terminal: &mut Terminal<impl Backend<Error = std::io::Error>>) -> Result<(), Error<CS::Error>> {
         loop {
             terminal.draw(|f| self.render(f)).map_err(Error::Render)?;
 
